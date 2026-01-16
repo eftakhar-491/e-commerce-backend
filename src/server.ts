@@ -1,15 +1,12 @@
 import { Server } from "http";
 let server: Server;
 
-import mongoose from "mongoose";
 import { envVars } from "./app/config/env";
 import { app } from "./app";
-import { connectRedis } from "./app/config/redis.config";
+// import { connectRedis } from "./app/config/redis.config";
 
 const startServer = async () => {
   try {
-    await mongoose.connect(envVars.DB_URL);
-
     console.log("✅✅✅✅ Connected to DB!!");
 
     server = app.listen(envVars.PORT, () => {
@@ -23,7 +20,7 @@ const startServer = async () => {
 };
 
 (async () => {
-  await connectRedis();
+  // await connectRedis();
   await startServer();
 })();
 
