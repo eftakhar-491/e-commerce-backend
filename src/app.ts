@@ -6,7 +6,7 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import { envVars } from "./app/config/env";
 import expressSession from "express-session";
-import { prisma as db } from "./app/config/prisma";
+import { router } from "./app/routes";
 
 // import { globalErrorHandler } from "./app/middlewares/globalErrorHandler";
 // import notFound from "./app/middlewares/notFound";
@@ -36,7 +36,8 @@ app.get("/", (_, res) => {
     success: true,
   });
 });
-// app.use("/api/v1", router);
+
+app.use("/api/v1", router);
 
 // app.use(globalErrorHandler);
 // app.use(notFound);
