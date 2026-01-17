@@ -1,18 +1,12 @@
 import { Router } from "express";
-
-// import { UserRoutes } from "../modules/user/user.route";
-// import { HomeRoutes } from "../modules/home/home.route";
-// import { AuthRoutes } from "../modules/auth/auth.route";
-// import { RideRoutes } from "../modules/ride/ride.route";
-// import { OtpRoutes } from "../modules/otp/otp.route";
-// import { DriverRoutes } from "../modules/driver/driver.route";
+import { AuthRoutes } from "../modules/auth/auth.route";
 
 export const router = Router();
 
 const moduleRoutes = [
   {
-    path: "/",
-    route: Router(), // Placeholder for HomeRoutes
+    path: "/user",
+    route: AuthRoutes,
   },
   // {
   //   path: "/auth",

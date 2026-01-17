@@ -6,7 +6,10 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import { envVars } from "./app/config/env";
 import expressSession from "express-session";
-import { prisma as db } from "./app/config/prisma";
+
+import { router } from "./app/routes";
+import { toNodeHandler } from "better-auth/node";
+import { auth } from "./app/lib/auth";
 
 // import { globalErrorHandler } from "./app/middlewares/globalErrorHandler";
 // import notFound from "./app/middlewares/notFound";
@@ -26,17 +29,19 @@ app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 app.use(
   cors({
-    origin: [envVars.FRONTEND_URL],
+    origin: [process.env.FRONTEND_URL as string],
     credentials: true,
   })
 );
+app.use("/api/auth", toNodeHandler(auth));
+app.use("/api", router);
+
 app.get("/", (_, res) => {
   res.send({
     message: "Welcome to the APP, this is a ride sharing service",
     success: true,
   });
 });
-// app.use("/api/v1", router);
 
 // app.use(globalErrorHandler);
 // app.use(notFound);
