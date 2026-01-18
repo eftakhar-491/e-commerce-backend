@@ -8,10 +8,10 @@ const moduleRoutes = [
     path: "/user",
     route: AuthRoutes,
   },
-  // {
-  //   path: "/auth",
-  //   route: AuthRoutes,
-  // },
+  {
+    path: "/auth",
+    route: AuthRoutes,
+  },
   // {
   //   path: "/user",
   //   route: UserRoutes,

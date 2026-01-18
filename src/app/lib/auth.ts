@@ -29,10 +29,32 @@ export const auth = betterAuth({
       },
     },
   },
+
   emailAndPassword: {
     enabled: true,
     autoSignIn: false,
     requireEmailVerification: true,
+    sendResetPassword: async ({ user, url, token }, request) => {
+      await sendEmail({
+        to: user.email,
+        subject: "Reset your password",
+        templateName: "forgetPassword",
+        templateData: {
+          name: user.name,
+          resetUILink: `${envVars.FRONTEND_URL}/auth/reset-password?id=${user.id}&token=${token}`,
+        },
+      });
+    },
+    onPasswordReset: async ({ user }, request) => {
+      await prisma.session.deleteMany({
+        where: {
+          userId: user.id,
+        },
+      });
+
+      // your logic here
+      console.log(`Password for user ${user.email} has been reset.`);
+    },
   },
   emailVerification: {
     sendOnSignUp: true,
@@ -44,11 +66,10 @@ export const auth = betterAuth({
       sendEmail({
         to: user.email,
         subject: "Verify your email address",
-        templateName: "otp",
+        templateName: "verifyEmail",
         templateData: {
           name: user.name,
           resetUILink,
-          otp: 5555,
         },
       });
       console.log("Verification URL:", url);
