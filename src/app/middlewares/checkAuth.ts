@@ -3,21 +3,22 @@ import AppError from "../helper/AppError";
 import { auth } from "../lib/auth";
 
 import type { NextFunction, Request, Response } from "express";
-// import {
-//   IsActive,
-//   IsAdminActive,
-//   IsDriverActive,
-//   Role,
-// } from "../modules/user/user.interface";
+import { UserStatus } from "../modules/user/user.interface";
 
 export const checkAuth =
   (...authRoles: string[]) =>
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const accessToken = req.headers.authorization || req.cookies.accessToken;
       const session = await auth.api.getSession({
         headers: req.headers as Record<string, string>,
       });
+
+      if (session?.user && !authRoles.includes(session.user.role)) {
+        return res.status(httpStatus.FORBIDDEN).json({
+          success: false,
+          message: "You do not have permission to access this resource",
+        });
+      }
 
       if (!session?.user) {
         return res.status(httpStatus.UNAUTHORIZED).json({
@@ -31,6 +32,27 @@ export const checkAuth =
           message: "Please verify your email to proceed",
         });
       }
+
+      if (session.user.status === UserStatus.BLOCKED) {
+        return res.status(httpStatus.FORBIDDEN).json({
+          success: false,
+          message: "Your account has been blocked. Please contact support.",
+        });
+      }
+      if (session.user.status === UserStatus.DELETED) {
+        return res.status(httpStatus.FORBIDDEN).json({
+          success: false,
+          message: "Your account has been deleted. Please contact support.",
+        });
+      }
+
+      if (session.user.status === UserStatus.INACTIVE) {
+        return res.status(httpStatus.FORBIDDEN).json({
+          success: false,
+          message: "Your account is inactive. Please contact support.",
+        });
+      }
+
       req.user = {
         id: session.user.id,
         email: session.user.email,
@@ -38,7 +60,7 @@ export const checkAuth =
         role: session.user.role,
         emailVerified: session.user.emailVerified,
         phone: session.user.phone,
-        status: session.user.status as string,
+        status: session.user.status as UserStatus,
       };
 
       next();

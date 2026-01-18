@@ -4,4 +4,22 @@ export enum Role {
   USER = "USER",
 }
 
+export enum UserStatus {
+  ACTIVE = "ACTIVE",
+  INACTIVE = "INACTIVE",
+  BLOCKED = "BLOCKED",
+  DELETED = "DELETED",
+}
 
+export interface IUser {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+  image?: string | null;
+  phone: string;
+  status: UserStatus;
+  emailVerified: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}

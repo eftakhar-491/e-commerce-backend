@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import httpStatus from "http-status-codes";
 
 import AppError from "../helper/AppError";
-import { Role } from "../modules/user/user.interface";
+
 
 export const checkRole =
   (...authRoles: string[]) =>
