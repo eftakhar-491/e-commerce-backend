@@ -1,234 +1,140 @@
-import { envVars } from "../../config/env";
-import AppError from "../../errorHelpers/AppError";
-import {
-  IAdmin,
-  IAuthProvider,
-  IDriver,
-  IRider,
-  IsActive,
-  IUser,
-  Role,
-} from "./user.interface";
-import { Admin, Driver, Rider, User } from "./user.model";
+import AppError from "../../helper/AppError";
 import httpStatus from "http-status-codes";
-import bcryptjs from "bcryptjs";
-import { JwtPayload } from "jsonwebtoken";
-import { QueryBuilder } from "../../utils/QueryBuilder";
 import { userSearchableFields } from "./user.constant";
-import { sendEmail } from "../../utils/sendEmail";
-import { redisClient } from "../../config/redis.config";
-import { generateOtp } from "../../utils/generateOtp";
-import { canUpdateStatus } from "../../helpers/canUpdateIsActive";
-const OTP_EXPIRATION = 2 * 60;
-const createUser = async (payload: Partial<IUser>, Model: any) => {
-  const { email, password, role, ...rest } = payload as Partial<IUser>;
+import { QueryBuilder } from "../../utils/QueryBuilder";
+import type { Prisma } from "../../../../prisma/generated/prisma/browser";
+import { prisma } from "../../lib/prisma";
+import { auth } from "../../lib/auth";
+import type { IUser } from "./user.interface";
 
-  const isUserExist = await Model.findOne({ email });
-
-  if (isUserExist) {
-    throw new AppError(httpStatus.BAD_REQUEST, "User Already Exist");
-  }
-
-  const hashedPassword = await bcryptjs.hash(
-    password as string,
-    Number(envVars.BCRYPT_SALT_ROUND)
-  );
-
-  const authProvider: IAuthProvider = {
-    provider: "credentials",
-    providerId: email as string,
-  };
-
-  const user = await Model.create({
-    email,
-    password: hashedPassword,
-    auths: [authProvider],
-    ...rest,
-  });
-
-  if (!user) {
-    throw new AppError(
-      httpStatus.INTERNAL_SERVER_ERROR,
-      "User creation failed"
-    );
-  }
-  const otp = generateOtp();
-
-  const redisKey = `otp:${email}`;
-
-  await redisClient.set(redisKey, otp, {
-    expiration: {
-      type: "EX",
-      value: OTP_EXPIRATION,
-    },
-  });
-
-  await sendEmail({
-    to: email as string,
-    subject: "Your OTP Code",
-    templateName: "otp",
-    templateData: {
-      name: rest.name,
-      otp: otp,
-    },
-  });
-  return user;
-};
-
-const updateUser = async (
-  userId: string,
-  payload: Partial<IRider> | Partial<IDriver> | Partial<IAdmin>,
-  decodedToken: JwtPayload,
-  Model: any
-) => {
-  if (
-    decodedToken.role === Role.RIDER ||
-    decodedToken.role === Role.DRIVER ||
-    decodedToken.role === Role.ADMIN
-  ) {
-    if (userId !== decodedToken.userId) {
-      throw new AppError(401, "You are not authorized");
-    }
-  }
-
-  const ifUserExist = await Model.findById(userId);
-
-  if (!ifUserExist) {
-    throw new AppError(httpStatus.NOT_FOUND, "User Not Found");
-  }
-
-  const { password: $pass$, ...newUpdatedUser } = await Model.findByIdAndUpdate(
-    userId,
-    payload,
-    {
-      new: true,
-      runValidators: true,
-    }
-  ).lean();
-
-  return newUpdatedUser;
-};
-
-const getAllUsers = async (query: Record<string, string>, Model: any) => {
-  const queryBuilder = new QueryBuilder(Model.find(), query);
-  const usersData = queryBuilder
+export const getAllUsers = async (query: Record<string, string>) => {
+  const qb = new QueryBuilder<
+    Prisma.UserWhereInput,
+    Prisma.UserSelect,
+    Prisma.UserOrderByWithRelationInput[]
+  >(query)
     .filter()
     .search(userSearchableFields)
     .sort()
     .fields()
     .paginate();
 
-  const [data, meta] = await Promise.all([
-    usersData.build().select("-password"),
-    queryBuilder.getMeta(),
-  ]);
+  const users = await prisma.user.findMany(
+    qb.build() as Prisma.UserFindManyArgs,
+  );
+
+  const meta = await qb.getMeta(prisma.user);
 
   return {
-    data,
     meta,
+    data: users,
   };
 };
-const getSingleUser = async (id: string) => {
-  const user = await User.findById(id).select("-password");
-  return {
-    data: user,
-  };
+const getMe = async (userId: string, headers: Record<string, string>) => {
+  const session = await auth.api.getSession({
+    headers: headers,
+  });
+
+  if (!session?.user) {
+    throw new AppError(httpStatus.NOT_FOUND, "User not found");
+  }
+
+  return session.user;
 };
 
-const getMe = async (userId: string, Model: any) => {
-  const user = await Model.findById(userId).select("-password");
-  return {
-    data: user,
-  };
-};
-const updateUserData = async (
+const updateMe = async (
   userId: string,
-  payload: Partial<IRider | IDriver | IAdmin>,
-  accessRole: Role
+  payload: {
+    name?: string;
+    phone?: string;
+    image?: string | null;
+    status?: string | null;
+  },
 ) => {
-  const existingUser = await User.findById(userId).lean();
+  const existingUser = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
   if (!existingUser) {
     throw new AppError(httpStatus.NOT_FOUND, "User not found");
   }
 
-  const sharedFields: any = {};
-  if (payload.name) sharedFields.name = payload.name;
-  if (payload.email) sharedFields.email = payload.email;
-  if (payload.phone) sharedFields.phone = payload.phone;
-  if (payload.picture) sharedFields.picture = payload.picture;
-  if (payload.address) sharedFields.address = payload.address;
-  if (
-    (!payload.isDeleted || payload.isDeleted) &&
-    typeof payload.isDeleted !== "undefined"
-  )
-    sharedFields.isDeleted = payload.isDeleted;
+  const updatedUser = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      ...(payload.name && { name: payload.name }),
+      ...(payload.phone && { phone: payload.phone }),
+      ...(payload.image && { image: payload.image }),
+      ...(payload.status && { status: payload.status }),
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      emailVerified: true,
+      image: true,
+      role: true,
+      phone: true,
+      status: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
 
-  if (payload.role && accessRole !== Role.ADMIN) {
-    throw new AppError(httpStatus.FORBIDDEN, "Only admin can change role");
-  } else {
-    // await User.deleteOne({ _id: userId });
+  return updatedUser;
+};
+const getSingleUser = async (userId: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      emailVerified: true,
+      image: true,
+      role: true,
+      phone: true,
+      status: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+  return user;
+};
 
-    if (payload.role === Role.RIDER) {
-      await Rider.create({ ...existingUser, _id: userId, role: payload.role });
-    } else if (payload.role === Role.DRIVER) {
-      await Driver.create({ ...existingUser, _id: userId, role: payload.role });
-    } else if (payload.role === Role.ADMIN) {
-      await Admin.create({ ...existingUser, _id: userId, role: payload.role });
-    }
-  }
-  if (payload.isActive && !canUpdateStatus(accessRole, payload.isActive)) {
-    throw new AppError(
-      httpStatus.FORBIDDEN,
-      "You are not allowed to change isActive status"
-    );
-  }
-
-  const updatedUser = await User.findByIdAndUpdate(userId, sharedFields, {
-    new: true,
-    runValidators: true,
-  }).lean();
-
-  let roleDoc;
-  const role = existingUser.role || accessRole;
-
-  switch (role) {
-    case Role.RIDER:
-      roleDoc = await Rider.findByIdAndUpdate(userId, payload, {
-        new: true,
-        runValidators: true,
-      }).lean();
-
-      break;
-
-    case Role.DRIVER:
-      roleDoc = await Driver.findByIdAndUpdate(userId, payload, {
-        new: true,
-        runValidators: true,
-      }).lean();
-      break;
-
-    case Role.ADMIN:
-      roleDoc = await Admin.findByIdAndUpdate(userId, payload, {
-        new: true,
-        runValidators: true,
-      }).lean();
-      break;
-  }
-
-  if (updatedUser?.password) {
-    delete updatedUser.password;
-  }
-
-  return {
-    user: { ...updatedUser, ...roleDoc },
-  };
+export const updateUser = async (userId: string, payload: Partial<IUser>) => {
+  const updatedUser = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      ...(payload.name && { name: payload.name }),
+      ...(payload.role && { role: payload.role }),
+      ...(typeof payload.emailVerified === "boolean" && {
+        emailVerified: payload.emailVerified,
+      }),
+      ...(payload.status && { status: payload.status }),
+      ...(payload.phone && { phone: payload.phone }),
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      emailVerified: true,
+      image: true,
+      role: true,
+      phone: true,
+      status: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+  return updatedUser;
 };
 
 export const UserServices = {
-  createUser,
   getAllUsers,
   getSingleUser,
   updateUser,
   getMe,
-  updateUserData,
+  updateMe,
 };
+

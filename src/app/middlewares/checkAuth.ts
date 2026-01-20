@@ -1,5 +1,5 @@
 import httpStatus from "http-status-codes";
-import AppError from "../helper/AppError";
+
 import { auth } from "../lib/auth";
 
 import type { NextFunction, Request, Response } from "express";
@@ -46,10 +46,10 @@ export const checkAuth =
         });
       }
 
-      if (session.user.status === UserStatus.INACTIVE) {
+      if (session.user.status === UserStatus.PENDING) {
         return res.status(httpStatus.FORBIDDEN).json({
           success: false,
-          message: "Your account is inactive. Please contact support.",
+          message: "Your account is pending approval. Please contact support.",
         });
       }
 

@@ -3,6 +3,7 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "./prisma";
 import { sendEmail } from "../utils/sendEmail";
 import { envVars } from "../config/env";
+import { Role, UserStatus } from "../modules/user/user.interface";
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -13,7 +14,7 @@ export const auth = betterAuth({
   user: {
     additionalFields: {
       role: {
-        type: "string",
+        type: [...Object.values(Role)],
         required: true,
         defaultValue: "USER",
       },
@@ -23,7 +24,7 @@ export const auth = betterAuth({
         unique: true,
       },
       status: {
-        type: "string",
+        type: [...Object.values(UserStatus)],
         required: false,
         defaultValue: "ACTIVE",
       },

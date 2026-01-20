@@ -1,217 +1,222 @@
-import { NextFunction, Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 
 import { catchAsync } from "../../utils/catchAsync";
 import { sendResponse } from "../../utils/sendResponse";
 import httpStatus from "http-status-codes";
 import { UserServices } from "./user.service";
-import AppError from "../../errorHelpers/AppError";
+import AppError from "../../helper/AppError";
 
-import { createUserTokens } from "../../utils/userTokens";
-import { setAuthCookie } from "../../utils/setCookie";
-import { JwtPayload } from "jsonwebtoken";
-import { envVars } from "../../config/env";
-import { verifyToken } from "../../utils/jwt";
-import { Role } from "./user.interface";
-import { Admin, Driver, Rider, User } from "./user.model";
+import { type IUser } from "./user.interface";
 
-const createUser = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    let user;
+// const updateUser = catchAsync(
+//   async (req: Request, res: Response, next: NextFunction) => {
+//     const userId = req.params.id;
+//     const token = req.headers.authorization;
+//     const verifiedToken = verifyToken(
+//       token as string,
+//       envVars.JWT_ACCESS_SECRET as string
+//     ) as JwtPayload;
 
-    const userRole = req.body.role;
-    switch (userRole) {
-      case Role.RIDER:
-        // Handle rider specific logic
-        user = await UserServices.createUser(req.body, Rider);
-        break;
-      case Role.DRIVER:
-        // Handle driver specific logic
-        user = await UserServices.createUser(req.body, Driver);
-        break;
-      case Role.ADMIN:
-        user = await UserServices.createUser(req.body, Admin);
+//     // const verifiedToken = req.user;
+//     let user;
+//     const payload = req.body;
 
-        break;
-      default:
-        throw new AppError(httpStatus.FORBIDDEN, "Invalid user role");
-    }
-    if (!user) {
-      throw new AppError(
-        httpStatus.INTERNAL_SERVER_ERROR,
-        "User creation failed"
-      );
-    }
-    const userTokens = await createUserTokens(user);
-    const { password: $pass$, ...rest } = user.toObject();
-    setAuthCookie(res, userTokens);
+//     const userRole = (req.user as JwtPayload).role as string;
 
-    sendResponse(res, {
-      success: true,
-      statusCode: httpStatus.OK,
-      message: "User created and logged in successfully",
-      data: {
-        accessToken: userTokens.accessToken,
-        refreshToken: userTokens.refreshToken,
-        user: rest,
-      },
-    });
-  }
-);
-const updateUser = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const userId = req.params.id;
-    const token = req.headers.authorization;
-    const verifiedToken = verifyToken(
-      token as string,
-      envVars.JWT_ACCESS_SECRET as string
-    ) as JwtPayload;
+//     switch (userRole) {
+//       case Role.RIDER:
+//         // Handle rider specific logic
+//         user = await UserServices.updateUser(
+//           userId,
+//           payload,
+//           verifiedToken as JwtPayload,
+//           Rider
+//         );
+//         break;
+//       case Role.DRIVER:
+//         // Handle driver specific logic
+//         user = await UserServices.updateUser(
+//           userId,
+//           payload,
+//           verifiedToken as JwtPayload,
+//           Driver
+//         );
+//         break;
+//       case Role.ADMIN:
+//         user = await UserServices.updateUser(
+//           userId,
+//           payload,
+//           verifiedToken as JwtPayload,
+//           Admin
+//         );
 
-    // const verifiedToken = req.user;
-    let user;
-    const payload = req.body;
+//         break;
+//       default:
+//         throw new AppError(httpStatus.FORBIDDEN, "Invalid user role");
+//     }
 
-    const userRole = (req.user as JwtPayload).role as string;
+//     // res.status(httpStatus.CREATED).json({
+//     //     message: "User Created Successfully",
+//     //     user
+//     // })
 
-    switch (userRole) {
-      case Role.RIDER:
-        // Handle rider specific logic
-        user = await UserServices.updateUser(
-          userId,
-          payload,
-          verifiedToken as JwtPayload,
-          Rider
-        );
-        break;
-      case Role.DRIVER:
-        // Handle driver specific logic
-        user = await UserServices.updateUser(
-          userId,
-          payload,
-          verifiedToken as JwtPayload,
-          Driver
-        );
-        break;
-      case Role.ADMIN:
-        user = await UserServices.updateUser(
-          userId,
-          payload,
-          verifiedToken as JwtPayload,
-          Admin
-        );
-
-        break;
-      default:
-        throw new AppError(httpStatus.FORBIDDEN, "Invalid user role");
-    }
-
-    // res.status(httpStatus.CREATED).json({
-    //     message: "User Created Successfully",
-    //     user
-    // })
-
-    sendResponse(res, {
-      success: true,
-      statusCode: httpStatus.OK,
-      message: "User Updated Successfully",
-      data: user,
-    });
-  }
-);
+//     sendResponse(res, {
+//       success: true,
+//       statusCode: httpStatus.OK,
+//       message: "User Updated Successfully",
+//       data: user,
+//     });
+//   }
+// );
 
 const getAllUsers = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const query = req.query;
-    let user;
-    const userRole = (req.user as JwtPayload).role as string;
-    try {
-      user = await UserServices.getAllUsers(
-        query as Record<string, string>,
-        User
-      );
-    } catch (error) {
-      throw new AppError(404, "All user Retrieved ");
-    }
 
-    sendResponse(res, {
-      success: true,
-      statusCode: httpStatus.OK,
-      message: "All Users Retrieved Successfully",
-      data: user?.data,
-      meta: user?.meta,
-    });
-  }
+    try {
+      const users = await UserServices.getAllUsers(
+        query as Record<string, string>,
+      );
+      sendResponse(res, {
+        success: true,
+        statusCode: httpStatus.OK,
+        message: "All Users Retrieved Successfully",
+        data: users.data,
+        meta: users.meta,
+      });
+    } catch (error) {
+      throw new AppError(
+        httpStatus.INTERNAL_SERVER_ERROR,
+        "Something went wrong while retrieving users",
+      );
+    }
+  },
 );
 const getMe = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const decodedToken = req.user as JwtPayload;
-    if (!decodedToken || !decodedToken.userId) {
+    const decodedHeader = req.user;
+    if (!decodedHeader) {
       throw new AppError(httpStatus.UNAUTHORIZED, "User not authenticated");
     }
-    let user;
+    try {
+      const user = await UserServices.getMe(
+        (decodedHeader as IUser).id,
+        req.headers as Record<string, string>,
+      );
 
-    const userRole = (req.user as JwtPayload).role as string;
-    switch (userRole) {
-      case Role.RIDER:
-        // Handle rider specific logic
-        user = await UserServices.getMe(decodedToken.userId, Rider);
-        break;
-      case Role.DRIVER:
-        // Handle driver specific logic
-        user = await UserServices.getMe(decodedToken.userId, Driver);
-        break;
-      case Role.ADMIN:
-        user = await UserServices.getMe(decodedToken.userId, Admin);
-        break;
-      default:
-        throw new AppError(httpStatus.FORBIDDEN, "Invalid user role");
+      sendResponse(res, {
+        success: true,
+        statusCode: httpStatus.OK,
+        message: "Your profile Retrieved Successfully",
+        data: user,
+      });
+    } catch (error) {
+      throw new AppError(
+        httpStatus.INTERNAL_SERVER_ERROR,
+        "Something went wrong while retrieving your profile",
+      );
     }
+  },
+);
+const updateMe = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { name, phone, image, status: bodyStatus } = req.body;
 
-    sendResponse(res, {
-      success: true,
-      statusCode: httpStatus.OK,
-      message: "Your profile Retrieved Successfully",
-      data: user.data,
-    });
-  }
+    const status = bodyStatus == "DELETED" ? bodyStatus : null;
+
+    const decodedHeader = req.user;
+
+    if (!decodedHeader) {
+      throw new AppError(httpStatus.UNAUTHORIZED, "User not authenticated");
+    }
+    try {
+      const updatedUser = await UserServices.updateMe(
+        (decodedHeader as IUser).id,
+        { name, phone, image, status },
+      );
+
+      sendResponse(res, {
+        success: true,
+        statusCode: httpStatus.OK,
+        message: "Your profile Updated Successfully",
+        data: updatedUser,
+      });
+    } catch (error) {
+      throw new AppError(
+        httpStatus.INTERNAL_SERVER_ERROR,
+        "Something went wrong while updating your profile",
+      );
+    }
+  },
 );
 const getSingleUser = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const id = req.params.id;
-
-    const user = await UserServices.getSingleUser(id);
-
-    sendResponse(res, {
-      success: true,
-      statusCode: httpStatus.OK,
-      message: "User Retrieved Successfully",
-      data: user.data,
-    });
-  }
-);
-export const updateUserData = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const userId = req.params.userId;
-    const payload = req.body;
-    const accessRole = (req.user as JwtPayload).role as Role;
-    const user = await UserServices.updateUserData(userId, payload, accessRole);
-
-    if (!user) {
-      return next(new AppError(httpStatus.NOT_FOUND, "User not found"));
+    const id = req.params.id as string;
+    if (!id) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        "User ID is required from params",
+      );
     }
+    try {
+      const user = await UserServices.getSingleUser(id);
+      sendResponse(res, {
+        success: true,
+        statusCode: httpStatus.OK,
+        message: "User Retrieved Successfully",
+        data: user,
+      });
+    } catch (error) {
+      throw new AppError(
+        httpStatus.INTERNAL_SERVER_ERROR,
+        "Something went wrong while retrieving the user",
+      );
+    }
+  },
+);
+export const updateUser = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const userId = req.params.id as string;
+    const { name, role, emailVerified, status, phone } = req.body;
 
-    sendResponse(res, {
-      success: true,
-      statusCode: httpStatus.OK,
-      message: "User Data Updated Successfully",
-      data: user,
-    });
-  }
+    if (!userId) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        "User ID is required from params",
+      );
+    }
+    try {
+      const user = await UserServices.updateUser(userId, {
+        name,
+        role,
+        emailVerified,
+        status,
+        phone,
+      });
+
+      if (!user) {
+        return next(new AppError(httpStatus.NOT_FOUND, "User not found"));
+      }
+
+      sendResponse(res, {
+        success: true,
+        statusCode: httpStatus.OK,
+        message: "User Data Updated Successfully",
+        data: user,
+      });
+    } catch (error) {
+      throw new AppError(
+        httpStatus.INTERNAL_SERVER_ERROR,
+        "Something went wrong while updating the user data",
+      );
+    }
+  },
 );
 export const UserControllers = {
-  createUser,
-  updateUser,
   getAllUsers,
+  updateMe,
   getSingleUser,
   getMe,
-  updateUserData,
+  updateUser,
+
 };
