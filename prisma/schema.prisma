@@ -6,24 +6,501 @@
 
 generator client {
   provider = "prisma-client"
-  output   = "./generated/prisma"
+  output   = "../generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
 }
-model User {
-  id    Int     @id @default(autoincrement())
-  email String  @unique
-  name  String?
-  posts Post[]
+
+////////////////////////////////////////////////////
+/// ENUMS
+////////////////////////////////////////////////////
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  RETURNED
 }
 
-model Post {
-  id        Int     @id @default(autoincrement())
+enum PaymentMethod {
+  COD
+  BKASH
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum UserStatus {
+  ACTIVE
+  DELETED
+  BLOCKED
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+////////////////////////////////////////////////////
+/// USERS & AUTH
+////////////////////////////////////////////////////
+
+model User {
+  id            String  @id @default(uuid())
+  name          String?
+  email         String
+  emailVerified Boolean @default(false)
+  image         String?
+
+  role   UserRole   @default(USER)
+  phone  String?    
+  status UserStatus @default(ACTIVE)
+
+  addresses    Address[]
+  sessions     Session[]
+  accounts     Account[]
+  reviews      Review[]
+  orders       Order[]
+  cart         Cart?
+  messages     Message[]
+  adminReplies Message[] @relation("AdminReplies")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  isSubscribed Boolean? @default(false)
+
+  @@index([email])
+  @@map("user")
+}
+
+model Session {
+  id     String @id @default(uuid())
+  userId String
+  token  String @unique
+
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+
+  user User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id        String @id @default(uuid())
+  userId    String
+  accountId String
+
+  accessToken  String?
+  refreshToken String?
+  idToken      String?
+
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+
+  scope    String?
+  password String?
+
+  user User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  providerId String
+
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(uuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+////////////////////////////////////////////////////
+/// ADDRESSES
+////////////////////////////////////////////////////
+
+model Address {
+  id     String @id @default(uuid())
+  userId String
+
+  street  String
+  city    String
+  state   String?
+  zipCode String?
+  country String
+
+  user   User    @relation(fields: [userId], references: [id])
+  orders Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+////////////////////////////////////////////////////
+/// CATEGORY & TAG
+////////////////////////////////////////////////////
+
+model Category {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  slug        String  @unique
+  description String?
+  image       String?
+
+  parentId String?
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryHierarchy")
+
+  isActive Boolean @default(true)
+
+  products Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Tag {
+  id    String @id @default(uuid())
+  title String @unique
+
+  products ProductTag[]
+
+  createdAt DateTime @default(now())
+}
+
+model ProductTag {
+  productId String
+  tagId     String
+
+  product Product @relation(fields: [productId], references: [id])
+  tag     Tag     @relation(fields: [tagId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@id([productId, tagId])
+}
+
+////////////////////////////////////////////////////
+/// PRODUCTS
+////////////////////////////////////////////////////
+
+model Product {
+  id          String  @id @default(uuid())
+  title       String
+  slug        String  @unique
+  description String?
+  shortDesc   String?
+
+  categoryId String
+  brand      String?
+
+  hasVariants Boolean @default(false)
+  isActive    Boolean @default(true)
+  isFeatured  Boolean @default(false)
+
+  category Category         @relation(fields: [categoryId], references: [id])
+  variants ProductVariant[]
+  images   ProductImage[]
+  reviews  Review[]
+  tags     ProductTag[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+}
+
+////////////////////////////////////////////////////
+/// PRODUCT VARIANTS
+////////////////////////////////////////////////////
+
+model ProductVariant {
+  id        String  @id @default(uuid())
+  productId String
   title     String
-  content   String?
-  published Boolean @default(false)
-  author    User    @relation(fields: [authorId], references: [id])
-  authorId  Int
+  isActive  Boolean @default(true)
+
+  product Product         @relation(fields: [productId], references: [id])
+  options VariantOption[]
+  images  ProductImage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+}
+
+model VariantOption {
+  id               String @id @default(uuid())
+  productVariantId String
+
+  sku          String
+  stock        Int
+  price        Decimal  @db.Decimal(10, 2)
+  comparePrice Decimal? @db.Decimal(10, 2)
+  costPrice    Decimal? @db.Decimal(10, 2)
+
+  name     String
+  value    String
+  isActive Boolean @default(true)
+
+  variant    ProductVariant @relation(fields: [productVariantId], references: [id])
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+  images     ProductImage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productVariantId, sku])
+  @@index([productVariantId])
+}
+
+////////////////////////////////////////////////////
+/// PRODUCT IMAGES
+////////////////////////////////////////////////////
+
+model ProductImage {
+  id              String  @id @default(uuid())
+  productId       String?
+  variantId       String?
+  variantOptionId String?
+
+  src       String
+  altText   String?
+  isPrimary Boolean @default(false)
+
+  product Product?        @relation(fields: [productId], references: [id])
+  variant ProductVariant? @relation(fields: [variantId], references: [id])
+  option  VariantOption?  @relation(fields: [variantOptionId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+  @@index([variantId])
+  @@index([variantOptionId])
+}
+
+////////////////////////////////////////////////////
+/// REVIEWS
+////////////////////////////////////////////////////
+
+model Review {
+  id        String @id @default(uuid())
+  userId    String
+  productId String
+
+  rating     Int
+  title      String?
+  comment    String?
+  isApproved Boolean @default(false)
+
+  user    User    @relation(fields: [userId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+}
+
+////////////////////////////////////////////////////
+/// CART
+////////////////////////////////////////////////////
+
+model Cart {
+  id     String @id @default(uuid())
+  userId String @unique
+
+  user  User       @relation(fields: [userId], references: [id])
+  items CartItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CartItem {
+  id              String @id @default(uuid())
+  cartId          String
+  variantOptionId String
+  quantity        Int
+
+  cart   Cart          @relation(fields: [cartId], references: [id])
+  option VariantOption @relation(fields: [variantOptionId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([cartId])
+}
+
+////////////////////////////////////////////////////
+/// ORDERS
+////////////////////////////////////////////////////
+
+model Order {
+  id          String @id @default(uuid())
+  orderNumber String @unique
+
+  userId            String
+  shippingAddressId String
+
+  billingAddressSnapshot Json
+
+  status OrderStatus
+
+  subtotal      Decimal @db.Decimal(10, 2)
+  discountTotal Decimal @db.Decimal(10, 2)
+  shippingCost  Decimal @db.Decimal(10, 2)
+  tax           Decimal @db.Decimal(10, 2)
+  total         Decimal @db.Decimal(10, 2)
+
+  couponId     String?
+  customerNote String?
+  adminNote    String?
+
+  user    User        @relation(fields: [userId], references: [id])
+  address Address     @relation(fields: [shippingAddressId], references: [id])
+  coupon  Coupon?     @relation(fields: [couponId], references: [id])
+  items   OrderItem[]
+  payment Payment?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model OrderItem {
+  id              String @id @default(uuid())
+  orderId         String
+  variantOptionId String
+
+  productId    String
+  productName  String
+  productImage String?
+
+  variantSnapshot Json
+
+  quantity       Int
+  unitPrice      Decimal @db.Decimal(10, 2)
+  discountAmount Decimal @db.Decimal(10, 2)
+  total          Decimal @db.Decimal(10, 2)
+
+  order  Order         @relation(fields: [orderId], references: [id])
+  option VariantOption @relation(fields: [variantOptionId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+}
+
+////////////////////////////////////////////////////
+/// PAYMENT
+////////////////////////////////////////////////////
+
+model Payment {
+  id      String @id @default(uuid())
+  orderId String @unique
+
+  method PaymentMethod
+  status PaymentStatus
+  amount Decimal       @db.Decimal(10, 2)
+
+  transactionId   String?
+  gatewayResponse Json?
+
+  paidAt DateTime?
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+////////////////////////////////////////////////////
+/// COUPON
+////////////////////////////////////////////////////
+
+model Coupon {
+  id          String  @id @default(uuid())
+  code        String  @unique
+  description String?
+
+  discountType  DiscountType
+  discountValue Decimal      @db.Decimal(10, 2)
+
+  minPurchase Decimal? @db.Decimal(10, 2)
+  maxDiscount Decimal? @db.Decimal(10, 2)
+
+  usageLimit Int?
+  usageCount Int  @default(0)
+
+  validFrom  DateTime
+  validUntil DateTime
+  isActive   Boolean  @default(true)
+
+  orders Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum MessageStatus {
+  UNREAD
+  READ
+  ARCHIVED
+}
+
+model Message {
+  id         String        @id @default(uuid())
+  userId     String
+  subject    String
+  message    String        @db.Text
+  status     MessageStatus @default(UNREAD)
+  // Admin response (denormalized for simplicity - single reply per message)
+  adminReply String?       @db.Text
+  repliedAt  DateTime?
+  repliedBy  String? // Admin user ID who replied
+  admin      User?         @relation("AdminReplies", fields: [repliedBy], references: [id])
+  user       User          @relation(fields: [userId], references: [id])
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
 }
