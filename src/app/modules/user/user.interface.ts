@@ -1,12 +1,10 @@
 export enum Role {
-  SUPER_ADMIN = "SUPER_ADMIN",
   ADMIN = "ADMIN",
   USER = "USER",
 }
 
 export enum UserStatus {
   ACTIVE = "ACTIVE",
-  PENDING = "PENDING",
   BLOCKED = "BLOCKED",
   DELETED = "DELETED",
 }

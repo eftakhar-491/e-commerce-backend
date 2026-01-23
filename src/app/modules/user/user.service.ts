@@ -2,10 +2,10 @@ import AppError from "../../helper/AppError";
 import httpStatus from "http-status-codes";
 import { userSearchableFields } from "./user.constant";
 import { QueryBuilder } from "../../utils/QueryBuilder";
-import type { Prisma } from "../../../../prisma/generated/prisma/browser";
+import type { Prisma } from "../../../../generated/prisma/browser";
 import { prisma } from "../../lib/prisma";
 import { auth } from "../../lib/auth";
-import type { IUser } from "./user.interface";
+import type { IUser, Role, UserStatus } from "./user.interface";
 
 export const getAllUsers = async (query: Record<string, string>) => {
   const qb = new QueryBuilder<
@@ -48,7 +48,7 @@ const updateMe = async (
     name?: string;
     phone?: string;
     image?: string | null;
-    status?: string | null;
+    status?: UserStatus | null;
   },
 ) => {
   const existingUser = await prisma.user.findUnique({
@@ -61,17 +61,20 @@ const updateMe = async (
 
   const updatedUser = await prisma.user.update({
     where: { id: userId },
+
     data: {
-      ...(payload.name && { name: payload.name }),
-      ...(payload.phone && { phone: payload.phone }),
-      ...(payload.image && { image: payload.image }),
-      ...(payload.status && { status: payload.status }),
+      name: payload.name ?? existingUser.name,
+      phone: payload.phone ?? existingUser.phone,
+      image: payload.image ?? existingUser.image,
+      status: payload.status ?? existingUser.status,
     },
+
     select: {
       id: true,
       name: true,
       email: true,
       emailVerified: true,
+      isSubscribed: true,
       image: true,
       role: true,
       phone: true,
@@ -92,6 +95,7 @@ const getSingleUser = async (userId: string) => {
       email: true,
       emailVerified: true,
       image: true,
+      isSubscribed: true,
       role: true,
       phone: true,
       status: true,
@@ -106,13 +110,13 @@ export const updateUser = async (userId: string, payload: Partial<IUser>) => {
   const updatedUser = await prisma.user.update({
     where: { id: userId },
     data: {
-      ...(payload.name && { name: payload.name }),
-      ...(payload.role && { role: payload.role }),
-      ...(typeof payload.emailVerified === "boolean" && {
+      ...(payload.name !== undefined && { name: payload.name }),
+      ...(payload.role !== undefined && { role: payload.role as Role }),
+      ...(payload.emailVerified !== undefined && {
         emailVerified: payload.emailVerified,
       }),
-      ...(payload.status && { status: payload.status }),
-      ...(payload.phone && { phone: payload.phone }),
+      ...(payload.status !== undefined && { status: payload.status }),
+      ...(payload.phone !== undefined && { phone: payload.phone }),
     },
     select: {
       id: true,
@@ -120,6 +124,7 @@ export const updateUser = async (userId: string, payload: Partial<IUser>) => {
       email: true,
       emailVerified: true,
       image: true,
+      isSubscribed: true,
       role: true,
       phone: true,
       status: true,
@@ -137,4 +142,3 @@ export const UserServices = {
   getMe,
   updateMe,
 };
-
