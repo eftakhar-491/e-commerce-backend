@@ -46,13 +46,6 @@ export const checkAuth =
         });
       }
 
-      if (session.user.status === UserStatus.PENDING) {
-        return res.status(httpStatus.FORBIDDEN).json({
-          success: false,
-          message: "Your account is pending approval. Please contact support.",
-        });
-      }
-
       req.user = {
         id: session.user.id,
         email: session.user.email,

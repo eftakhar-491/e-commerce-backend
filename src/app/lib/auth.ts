@@ -28,6 +28,11 @@ export const auth = betterAuth({
         required: false,
         defaultValue: "ACTIVE",
       },
+      isSubscribed: {
+        type: "boolean",
+        required: false,
+        defaultValue: false,
+      },
     },
   },
 
