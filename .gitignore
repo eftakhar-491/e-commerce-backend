@@ -1,9 +1,9 @@
 node_modules
 
-.env
 
 dist
 /generated/prisma
 
 prisma/migrations
 prisma/generated
+config.bat
