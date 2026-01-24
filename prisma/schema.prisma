@@ -178,7 +178,7 @@ model Category {
   name        String  @unique
   slug        String  @unique
   description String?
-  image       String?
+  
 
   parentId String?
   parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
@@ -300,6 +300,7 @@ model ProductImage {
   variantOptionId String?
 
   src       String
+  publicId  String
   altText   String?
   isPrimary Boolean @default(false)
 
@@ -308,7 +309,7 @@ model ProductImage {
   option  VariantOption?  @relation(fields: [variantOptionId], references: [id])
 
   createdAt DateTime @default(now())
-
+  updatedAt DateTime @updatedAt
   @@index([productId])
   @@index([variantId])
   @@index([variantOptionId])
