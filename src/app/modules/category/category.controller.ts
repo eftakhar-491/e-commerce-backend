@@ -1,5 +1,4 @@
 import AppError from "../../helper/AppError";
-
 import { catchAsync } from "../../utils/catchAsync";
 import { sendResponse } from "../../utils/sendResponse";
 import { CategoryService } from "./category.service";
@@ -53,71 +52,7 @@ const getCategories = catchAsync(async (req, res) => {
     meta: result.meta,
   });
 });
-// const updateCategory = catchAsync(async (req, res) => {
-//   const { name, slug, description, images, parentId, isActive } = req.body;
-//   const categoryId = req.params.id as string;
-//   if (!categoryId) {
-//     throw new AppError(httpStatus.BAD_REQUEST, `Category ID is required`);
-//   }
 
-//   const categories = await CategoryService.updateCategory(categoryId, {
-//     name,
-//     slug,
-//     description,
-//     images,
-//     parentId,
-//     isActive,
-//   });
-//   sendResponse(res, {
-//     success: true,
-//     statusCode: httpStatus.OK,
-//     message: "Category updated successfully",
-//     data: categories,
-//   });
-// });
-// const updateCategory = catchAsync(async (req, res) => {
-//   const { name, slug, description, parentId, isActive } = req.body || {};
-
-//   const categoryId = req.params.id as string;
-
-//   if (!categoryId) {
-//     throw new AppError(httpStatus.BAD_REQUEST, "Category ID is required");
-//   }
-
-//   let image;
-//   if (req.file) {
-//     image = {
-//       src: req.file.path,
-//       publicId: req.file.filename,
-//       altText: name,
-//     };
-//   } else if (req.query.storageType === "custom") {
-//     image = {
-//       src: req.body.src || null,
-//       publicId: req.body.publicId || null,
-//       altText: req.body.altText || name,
-//     };
-//   }
-
-//   const category = await CategoryService.updateCategory(
-//     categoryId,
-//     {
-//       name,
-//       slug,
-//       description,
-//       parentId,
-//       isActive,
-//     },
-//     image,
-//   );
-
-//   sendResponse(res, {
-//     success: true,
-//     statusCode: httpStatus.OK,
-//     message: "Category updated successfully",
-//     data: category,
-//   });
-// });
 const updateCategory = catchAsync(async (req, res) => {
   const categoryId = req.params.id as string;
 

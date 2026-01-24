@@ -18,6 +18,7 @@ export const uploadImage = async (
   if (!storageType) {
     return next();
   }
+
   if (storageType === "custom") {
     if (!req.body.src || !req.body.publicId) {
       throw new AppError(
@@ -25,7 +26,6 @@ export const uploadImage = async (
         "Custom image src and publicId required",
       );
     }
-
     next();
     return;
   }
