@@ -5,8 +5,7 @@ node_modules
 dist
 /generated/prisma
 
-prisma/migrations
-prisma/generated
+
 uploads
 
 src/generated
