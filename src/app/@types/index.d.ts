@@ -11,6 +11,11 @@ declare global {
         phone?: string;
         status?: string;
       };
+      file?: {
+        path: string;
+        filename: string;
+        public_id: string;
+      };
     }
   }
 }
