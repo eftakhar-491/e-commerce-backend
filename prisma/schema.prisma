@@ -178,11 +178,13 @@ model Category {
   name        String  @unique
   slug        String  @unique
   description String?
-  image       String?
+  
 
   parentId String?
   parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
   children Category[] @relation("CategoryHierarchy")
+
+  images ProductImage[]
 
   isActive Boolean @default(true)
 
@@ -298,17 +300,20 @@ model ProductImage {
   productId       String?
   variantId       String?
   variantOptionId String?
+  categoryId      String?
 
   src       String
+  publicId  String
   altText   String?
   isPrimary Boolean @default(false)
 
   product Product?        @relation(fields: [productId], references: [id])
   variant ProductVariant? @relation(fields: [variantId], references: [id])
   option  VariantOption?  @relation(fields: [variantOptionId], references: [id])
+  category Category?       @relation(fields: [categoryId], references: [id])
 
   createdAt DateTime @default(now())
-
+  updatedAt DateTime @updatedAt
   @@index([productId])
   @@index([variantId])
   @@index([variantOptionId])
