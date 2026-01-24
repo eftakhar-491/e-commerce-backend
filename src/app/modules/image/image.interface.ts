@@ -4,6 +4,7 @@ export interface IProductImage {
   productId?: string | null;
   variantId?: string | null;
   variantOptionId?: string | null;
+  categoryId?: string | null;
 
   src: string;
   publicId: string;

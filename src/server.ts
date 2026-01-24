@@ -3,15 +3,12 @@ let server: Server;
 
 import { envVars } from "./app/config/env";
 import { app } from "./app";
-// import { connectRedis } from "./app/config/redis.config";
 
 const startServer = async () => {
   try {
-    console.log("✅✅✅✅ Connected to DB!!");
-
     server = app.listen(envVars.PORT, () => {
       console.log(
-        `✅✅✅✅ Server is listening to http://localhost:${envVars.PORT} `
+        `✅✅✅✅ Server is listening to http://localhost:${envVars.PORT} `,
       );
     });
   } catch (error) {
@@ -20,7 +17,6 @@ const startServer = async () => {
 };
 
 (async () => {
-  // await connectRedis();
   await startServer();
 })();
 
