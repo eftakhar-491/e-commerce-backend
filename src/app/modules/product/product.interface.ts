@@ -1,3 +1,5 @@
+import type { ICategory } from "../category/category.interface";
+
 export interface IBaseEntity {
   id: string;
   createdAt: Date;
@@ -17,7 +19,7 @@ export interface IProduct extends IBaseEntity {
   isActive: boolean;
   isFeatured: boolean;
 
-  //   category?: ICategory;
+  category?: ICategory;
   variants?: IProductVariant[];
   images?: IProductImage[];
   //   reviews?: IReview[];
