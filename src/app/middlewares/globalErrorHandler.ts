@@ -15,7 +15,9 @@ export const globalErrorHandler = async (
   next: NextFunction,
 ) => {
   if (envVars.NODE_ENV === "development") {
+    console.log("============================================");
     console.log(err);
+    console.log("============================================");
   }
 
   let errorSources: TErrorSources[] = [];
@@ -26,6 +28,14 @@ export const globalErrorHandler = async (
     // const simplifiedError = handlerDuplicateError(err);
     // statusCode = simplifiedError.statusCode;
     // message = simplifiedError.message;
+  }
+  if (err.code === "P2002") {
+    statusCode = 503;
+    message = err.message;
+  }
+  if (err.code === "P2003") {
+    statusCode = 503;
+    message = err.message;
   }
   // Object ID error / Cast Error
   else if (err.name === "CastError") {

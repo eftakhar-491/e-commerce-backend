@@ -85,14 +85,37 @@ export class QueryBuilder<TWhere, TSelect, TOrderBy> {
     return this;
   }
 
+  // build() {
+  //   return {
+  //     where: this.where,
+  //     select: this.select,
+  //     orderBy: this.orderBy,
+  //     skip: this.skip,
+  //     take: this.take,
+  //   };
+  // }
   build() {
-    return {
+    const query: any = {
       where: this.where,
-      select: this.select,
-      orderBy: this.orderBy,
-      skip: this.skip,
-      take: this.take,
     };
+
+    if (this.select) {
+      query.select = this.select;
+    }
+
+    if (this.orderBy) {
+      query.orderBy = this.orderBy;
+    }
+
+    if (this.skip !== undefined) {
+      query.skip = this.skip;
+    }
+
+    if (this.take !== undefined) {
+      query.take = this.take;
+    }
+
+    return query;
   }
 
   async getMeta(prismaModel: { count: Function }) {
