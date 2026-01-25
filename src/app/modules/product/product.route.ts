@@ -3,8 +3,14 @@ import { checkAuth } from "../../middlewares/checkAuth";
 
 import { Role } from "../user/user.interface";
 import { validateRequest } from "../../middlewares/validateRequest";
-import { createProductZodSchema } from "./product.validetion";
+import {
+  createProductZodSchema,
+  updateProductZodSchema,
+} from "./product.validetion";
 import { ProductController } from "./product.controller";
+import { uploadImages } from "../../middlewares/uploadImages";
+
+import { parseFormData } from "../../middlewares/parseFormData";
 
 // /api/product/
 
@@ -14,9 +20,18 @@ const router = Router();
 router.post(
   "/create",
   checkAuth(Role.ADMIN),
-
+  uploadImages,
+  parseFormData,
   validateRequest(createProductZodSchema),
   ProductController.createProduct,
 );
+router.post(
+  "/update/:id",
+  checkAuth(Role.ADMIN),
+  validateRequest(updateProductZodSchema),
+  ProductController.updateProduct,
+);
+router.get("/", ProductController.getAllProducts);
+router.get("/:id", ProductController.getProductById);
 
 export const ProductRoutes = router;
