@@ -20,6 +20,13 @@ router.post(
   uploadImages,
   ImageController.createImages,
 );
+router.get("/", checkAuth(Role.ADMIN), ImageController.getAllImages);
+router.delete(
+  "/delete/:id",
+  checkAuth(Role.ADMIN),
+  ImageController.deleteImage,
+);
+
 // router.post(
 //   "/update/:id",
 //   checkAuth(Role.ADMIN),

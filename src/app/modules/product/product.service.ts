@@ -547,7 +547,6 @@ const getAllProducts = async () => {
       images: true,
       variants: {
         include: {
-          images: true,
           options: {
             include: { images: true },
           },
@@ -564,7 +563,6 @@ const getProductById = async (productId: string) => {
       images: true,
       variants: {
         include: {
-          images: true,
           options: {
             include: { images: true },
           },

@@ -8,15 +8,7 @@ const createCategory = catchAsync(async (req, res) => {
   console.log("req.body:", req.body);
   console.log("req.file:", req.file);
   console.log("req.files:", req.files);
-  const {
-    name,
-    slug,
-    description,
-    parentId,
-    isActive: status,
-  } = req.body || {};
-
-  const isActive = status === "true" ? true : false;
+  const { name, slug, description, parentId, isActive, imageId } = req.body;
 
   if (!name || !slug) {
     throw new AppError(httpStatus.BAD_REQUEST, "Name and slug are required");
@@ -29,6 +21,7 @@ const createCategory = catchAsync(async (req, res) => {
       description,
       parentId,
       isActive,
+      imageId,
     },
     req,
   );
