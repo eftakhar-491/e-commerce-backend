@@ -37,6 +37,35 @@ const createImages = catchAsync(
     });
   },
 );
+const getAllImages = catchAsync(async (req: Request, res: Response) => {
+  const query = req.query;
+  const result = await ImageService.getAllImages(query as Record<string, any>);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Images retrieved successfully",
+    data: result,
+  });
+});
+const deleteImage = catchAsync(async (req: Request, res: Response) => {
+  const imageId = req.params.id as string;
+  const { src, publicId } = req.body as { src?: string; publicId?: string };
+  const { storageType } = req.query as {
+    storageType: "local" | "cloudinary" | "custom";
+  };
+  const _result = await ImageService.deleteImage(imageId, storageType, {
+    ...(src !== undefined && { src }),
+    ...(publicId !== undefined && { publicId }),
+  });
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Image deleted successfully",
+    data: null,
+  });
+});
 export const ImageController = {
   createImages,
+  getAllImages,
+  deleteImage,
 };

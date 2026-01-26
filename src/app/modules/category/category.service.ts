@@ -35,22 +35,7 @@ const createCategory = async (payload: CreateCategoryDTO, req: Request) => {
   });
 
   if (existsNameOrSlug) {
-    req.file &&
-      req.query.storageType !== "custom" &&
-      (await deleteUploadedImage(
-        req.file,
-        req.query.storageType as "local" | "cloudinary",
-      ));
     throw new AppError(httpStatus.CONFLICT, "Name or slug already exists");
-  }
-
-  if (req.query.storageType == "custom") {
-    if (!req.body.src || !req.body.publicId) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        "Custom image src and publicId required",
-      );
-    }
   }
 
   if (!req.file && req.query.storageType !== "custom") {

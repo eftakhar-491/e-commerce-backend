@@ -27,4 +27,5 @@ export interface CreateCategoryDTO {
   images?: IProductImage[];
   parentId?: string;
   isActive?: boolean;
+  imageId?: string;
 }

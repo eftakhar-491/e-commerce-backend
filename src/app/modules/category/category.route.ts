@@ -13,7 +13,7 @@ const router = Router();
 router.post(
   "/create",
   checkAuth(Role.ADMIN),
-  uploadImage,
+  // uploadImage,
   CategoryControllers.createCategory,
 );
 

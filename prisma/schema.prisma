@@ -308,7 +308,6 @@ model ProductImage {
   isPrimary Boolean @default(false)
 
   product Product?        @relation(fields: [productId], references: [id])
-
   option  VariantOption?  @relation(fields: [variantOptionId], references: [id])
   category Category?       @relation(fields: [categoryId], references: [id])
 

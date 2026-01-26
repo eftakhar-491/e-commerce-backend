@@ -1,6 +1,8 @@
 import httpStatus from "http-status-codes";
 import AppError from "../../helper/AppError";
 import { prisma } from "../../lib/prisma";
+import { QueryBuilder } from "../../utils/QueryBuilder";
+import { cleanupImages } from "../../utils/cleanupImage";
 
 type CreateImagePayload = {
   productId?: string;
@@ -69,7 +71,56 @@ const createImages = async (payload: CreateImagePayload) => {
 
   //   });
 };
+// const getAllImages = async () => {
+//   const images = await prisma.productImage.findMany({
+//     orderBy: {
+//       createdAt: "desc",
+//     },
+//   });
+//   return images;
+// };
+const getAllImages = async (query: Record<string, any>) => {
+  const qb = new QueryBuilder<any, any, any>({ ...query, limit: "12" })
+    .filter()
+    .search(["altText", "src", "publicId"])
+    .sort()
+    .fields()
+    .paginate();
+
+  const prismaQuery = qb.build();
+
+  const data = await prisma.productImage.findMany(prismaQuery);
+
+  const meta = await qb.getMeta(prisma.productImage);
+
+  return {
+    meta,
+    data,
+  };
+};
+
+const deleteImage = async (
+  imageId: string,
+  storageType: "local" | "cloudinary" | "custom",
+  payload: { src?: string; publicId?: string },
+) => {
+  console.log(payload);
+  await cleanupImages([
+    {
+      storageType,
+      ...(payload?.publicId !== undefined && { publicId: payload.publicId }),
+      ...(payload?.src !== undefined && { src: payload.src }),
+    },
+  ]);
+  await prisma.productImage.delete({
+    where: {
+      id: imageId,
+    },
+  });
+};
 
 export const ImageService = {
   createImages,
+  getAllImages,
+  deleteImage,
 };
