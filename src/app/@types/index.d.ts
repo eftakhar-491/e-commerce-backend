@@ -16,6 +16,11 @@ declare global {
         filename: string;
         public_id: string;
       };
+      uploadedImages?: {
+        storageType?: "local" | "cloudinary" | "custom";
+        src?: string;
+        publicId?: string;
+      }[];
     }
   }
 }

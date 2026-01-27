@@ -184,7 +184,7 @@ model Category {
   parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
   children Category[] @relation("CategoryHierarchy")
 
-  images ProductImage[]
+  images    ProductImage[]
 
   isActive Boolean @default(true)
 
@@ -226,14 +226,14 @@ model Product {
   description String?
   shortDesc   String?
 
-  categoryId String
+  categoryId String?
   brand      String?
 
   hasVariants Boolean @default(false)
   isActive    Boolean @default(true)
   isFeatured  Boolean @default(false)
 
-  category Category         @relation(fields: [categoryId], references: [id])
+  category Category?         @relation(fields: [categoryId], references: [id])
   variants ProductVariant[]
   images   ProductImage[]
   reviews  Review[]
@@ -255,9 +255,9 @@ model ProductVariant {
   title     String
   isActive  Boolean @default(true)
 
-  product Product         @relation(fields: [productId], references: [id])
-  options VariantOption[]
-  images  ProductImage[]
+  product   Product         @relation(fields: [productId], references: [id])
+  options   VariantOption[]
+
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -308,7 +308,6 @@ model ProductImage {
   isPrimary Boolean @default(false)
 
   product Product?        @relation(fields: [productId], references: [id])
-  variant ProductVariant? @relation(fields: [variantId], references: [id])
   option  VariantOption?  @relation(fields: [variantOptionId], references: [id])
   category Category?       @relation(fields: [categoryId], references: [id])
 

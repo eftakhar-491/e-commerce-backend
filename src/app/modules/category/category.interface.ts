@@ -1,4 +1,5 @@
 import type { IProductImage } from "../image/image.interface";
+import type { IProduct } from "../product/product.interface";
 
 export interface ICategory {
   id: string;
@@ -13,7 +14,7 @@ export interface ICategory {
   images?: IProductImage[];
   isActive: boolean;
 
-  // products?: IProduct[];
+  products?: IProduct[];
 
   createdAt: Date;
   updatedAt: Date;
@@ -26,4 +27,5 @@ export interface CreateCategoryDTO {
   images?: IProductImage[];
   parentId?: string;
   isActive?: boolean;
+  imageId?: string;
 }
