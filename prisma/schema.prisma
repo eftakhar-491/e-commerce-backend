@@ -184,7 +184,7 @@ model Category {
   parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
   children Category[] @relation("CategoryHierarchy")
 
-  images ProductImage[]
+  images    ProductImage[]
 
   isActive Boolean @default(true)
 

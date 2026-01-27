@@ -7,9 +7,9 @@ export const productImageZodSchema = z.object({
   variantId: uuidSchema.optional(),
   variantOptionId: uuidSchema.optional(),
   categoryId: uuidSchema.optional(),
-  src: z.string().url("Image src must be a valid URL"),
+  src: z.string().url("Image src must be a valid URL").optional(),
   altText: z.string().optional(),
-  publicId: z.string(),
+  publicId: z.string().optional(),
   isPrimary: z.boolean().default(false),
 });
 
