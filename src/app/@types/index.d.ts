@@ -11,6 +11,16 @@ declare global {
         phone?: string;
         status?: string;
       };
+      file?: {
+        path: string;
+        filename: string;
+        public_id: string;
+      };
+      uploadedImages?: {
+        storageType?: "local" | "cloudinary" | "custom";
+        src?: string;
+        publicId?: string;
+      }[];
     }
   }
 }

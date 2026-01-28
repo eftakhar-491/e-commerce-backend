@@ -12,9 +12,8 @@ import { auth } from "./app/lib/auth";
 import { globalErrorHandler } from "./app/middlewares/globalErrorHandler";
 import notFound from "./app/middlewares/notFound";
 
-// import { success } from "zod";
-
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(
   expressSession({
     secret: envVars.EXPRESS_SESSION_SECRET as string,
@@ -25,13 +24,23 @@ app.use(
 
 app.use(cookieParser());
 
-app.use(express.urlencoded({ extended: true }));
 app.use(
   cors({
     origin: [process.env.FRONTEND_URL as string],
     credentials: true,
   }),
 );
+app.use(
+  "/api/uploads",
+  express.static("uploads", {
+    maxAge: "7d",
+    index: false,
+    setHeaders: (res) => {
+      res.set("X-Content-Type-Options", "nosniff");
+    },
+  }),
+);
+
 app.use("/api/auth", toNodeHandler(auth));
 app.use("/api", router);
 

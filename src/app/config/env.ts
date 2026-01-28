@@ -8,6 +8,10 @@ interface EnvConfig {
   NODE_ENV: "development" | "production";
   EXPRESS_SESSION_SECRET?: string;
   BETTER_AUTH_SECRET: string;
+  CLOUDINARY_URL?: string;
+  CLOUDINARY_CLOUD_NAME?: string;
+  CLOUDINARY_API_KEY?: string;
+  CLOUDINARY_API_SECRET?: string;
 
   //   BCRYPT_SALT_ROUND: number;
   //   JWT_ACCESS_SECRET?: string;
@@ -43,6 +47,10 @@ const loadEnvVariables = (): EnvConfig => {
     "FRONTEND_URL",
     "EXPRESS_SESSION_SECRET",
     "BETTER_AUTH_SECRET",
+    "CLOUDINARY_URL",
+    "CLOUDINARY_CLOUD_NAME",
+    "CLOUDINARY_API_KEY",
+    "CLOUDINARY_API_SECRET",
     // "BCRYPT_SALT_ROUND",
     // "JWT_ACCESS_SECRET",
     // "JWT_REFRESH_SECRET",
@@ -78,7 +86,10 @@ const loadEnvVariables = (): EnvConfig => {
     NODE_ENV: process.env.NODE_ENV as "development" | "production",
     EXPRESS_SESSION_SECRET: process.env.EXPRESS_SESSION_SECRET as string,
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET as string,
-
+    CLOUDINARY_URL: process.env.CLOUDINARY_URL as string,
+    CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME as string,
+    CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY as string,
+    CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET as string,
     // BCRYPT_SALT_ROUND: Number(process.env.BCRYPT_SALT_ROUND) || 10,
     // JWT_ACCESS_SECRET: process.env.JWT_ACCESS_SECRET as string,
     // JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET as string,
