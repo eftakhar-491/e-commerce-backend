@@ -3,6 +3,7 @@ import type { NextFunction, Request, Response } from "express";
 import { envVars } from "../config/env";
 import AppError from "../helper/AppError";
 import type { TErrorSources } from "../@types/error.types";
+import { cleanupImages } from "../utils/cleanupImage";
 // import { handleCastError } from "../helpers/handleCastError";
 // import { handlerDuplicateError } from "../helpers/handleDuplicateError";
 // import { handlerValidationError } from "../helpers/handlerValidationError";
@@ -14,8 +15,19 @@ export const globalErrorHandler = async (
   res: Response,
   next: NextFunction,
 ) => {
+  await cleanupImages(
+    req.uploadedImages as
+      | {
+          storageType: "local" | "cloudinary" | "custom";
+          src?: string;
+          publicId?: string;
+        }[]
+      | undefined,
+  );
   if (envVars.NODE_ENV === "development") {
+    console.log("============================================");
     console.log(err);
+    console.log("============================================");
   }
 
   let errorSources: TErrorSources[] = [];
@@ -26,6 +38,18 @@ export const globalErrorHandler = async (
     // const simplifiedError = handlerDuplicateError(err);
     // statusCode = simplifiedError.statusCode;
     // message = simplifiedError.message;
+  }
+  if (err.code === "P2002") {
+    statusCode = 503;
+    message = err.message;
+  }
+  if (err.code === "P2025") {
+    statusCode = 503;
+    message = "No record found to delete/update!";
+  }
+  if (err.code === "P2003") {
+    statusCode = 503;
+    message = err.message;
   }
   // Object ID error / Cast Error
   else if (err.name === "CastError") {
