@@ -4,7 +4,6 @@ import { userSearchableFields } from "./user.constant";
 import { QueryBuilder } from "../../utils/QueryBuilder";
 import type { Prisma } from "../../../../generated/prisma/browser";
 import { prisma } from "../../lib/prisma";
-import { auth } from "../../lib/auth";
 import type { IUser, Role, UserStatus } from "./user.interface";
 
 export const getAllUsers = async (query: Record<string, string>) => {
@@ -30,16 +29,28 @@ export const getAllUsers = async (query: Record<string, string>) => {
     data: users,
   };
 };
-const getMe = async (userId: string, headers: Record<string, string>) => {
-  const session = await auth.api.getSession({
-    headers: headers,
+const getMe = async (userId: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      emailVerified: true,
+      image: true,
+      role: true,
+      phone: true,
+      status: true,
+      createdAt: true,
+      updatedAt: true,
+    },
   });
 
-  if (!session?.user) {
+  if (!user) {
     throw new AppError(httpStatus.NOT_FOUND, "User not found");
   }
 
-  return session.user;
+  return user;
 };
 
 const updateMe = async (
@@ -74,7 +85,6 @@ const updateMe = async (
       name: true,
       email: true,
       emailVerified: true,
-      isSubscribed: true,
       image: true,
       role: true,
       phone: true,
@@ -95,7 +105,6 @@ const getSingleUser = async (userId: string) => {
       email: true,
       emailVerified: true,
       image: true,
-      isSubscribed: true,
       role: true,
       phone: true,
       status: true,
@@ -124,7 +133,6 @@ export const updateUser = async (userId: string, payload: Partial<IUser>) => {
       email: true,
       emailVerified: true,
       image: true,
-      isSubscribed: true,
       role: true,
       phone: true,
       status: true,

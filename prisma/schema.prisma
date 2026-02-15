@@ -86,6 +86,7 @@ model User {
   addresses        Address[]
   sessions         Session[]
   accounts         Account[]
+  credential       UserCredential?
   reviews          Review[]
   orders           Order[]
   cart             Cart?
@@ -152,6 +153,19 @@ model Account {
   @@unique([providerId, providerAccountId])
   @@index([userId])
   @@map("accounts")
+}
+
+model UserCredential {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  passwordHash String
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("user_credentials")
 }
 
 // ========== ADDRESS ==========

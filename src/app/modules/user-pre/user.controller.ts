@@ -101,7 +101,6 @@ const getMe = catchAsync(
     try {
       const user = await UserServices.getMe(
         (decodedHeader as IUser).id,
-        req.headers as Record<string, string>,
       );
 
       sendResponse(res, {

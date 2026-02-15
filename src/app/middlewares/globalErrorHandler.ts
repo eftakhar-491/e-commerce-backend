@@ -1,9 +1,11 @@
 import type { NextFunction, Request, Response } from "express";
+import httpStatus from "http-status-codes";
 
 import { envVars } from "../config/env";
 import AppError from "../helper/AppError";
 import type { TErrorSources } from "../@types/error.types";
 import { cleanupImages } from "../utils/cleanupImage";
+import { ZodError } from "zod";
 // import { handleCastError } from "../helpers/handleCastError";
 // import { handlerDuplicateError } from "../helpers/handleDuplicateError";
 // import { handlerValidationError } from "../helpers/handlerValidationError";
@@ -56,11 +58,13 @@ export const globalErrorHandler = async (
     // const simplifiedError = handleCastError(err);
     // statusCode = simplifiedError.statusCode;
     // message = simplifiedError.message;
-  } else if (err.name === "ZodError") {
-    // const simplifiedError = handlerZodError(err);
-    // statusCode = simplifiedError.statusCode;
-    // message = simplifiedError.message;
-    // errorSources = simplifiedError.errorSources as TErrorSources[];
+  } else if (err instanceof ZodError) {
+    statusCode = httpStatus.BAD_REQUEST;
+    message = "Validation error";
+    errorSources = err.issues.map((issue) => ({
+      path: issue.path.join("."),
+      message: issue.message,
+    }));
   }
   //Validation Error
   else if (err instanceof AppError) {
