@@ -1,6 +1,7 @@
 export enum Role {
   ADMIN = "ADMIN",
   USER = "USER",
+  MANAGER = "MANAGER",
 }
 
 export enum UserStatus {
@@ -11,11 +12,11 @@ export enum UserStatus {
 
 export interface IUser {
   id: string;
-  name: string;
+  name: string | null;
   email: string;
   role: Role;
   image?: string | null;
-  phone: string;
+  phone: string | null;
   status: UserStatus;
   emailVerified: boolean;
   createdAt: Date;

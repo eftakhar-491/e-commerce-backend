@@ -9,6 +9,10 @@ export const router = Router();
 
 const moduleRoutes = [
   {
+    path: "/auth",
+    route: AuthRoutes,
+  },
+  {
     path: "/user",
     route: UserRoutes,
   },
@@ -26,26 +30,6 @@ const moduleRoutes = [
     route: ImageRoutes,
   },
 
-  // {
-  //   path: "/user",
-  //   route: UserRoutes,
-  // },
-  //   {
-  //     path: "/auth",
-  //     route: AuthRoutes,
-  //   },
-  //   {
-  //     path: "/otp",
-  //     route: OtpRoutes,
-  //   },
-  //   {
-  //     path: "/ride",
-  //     route: RideRoutes,
-  //   },
-  //   {
-  //     path: "/driver",
-  //     route: DriverRoutes,
-  //   },
 ];
 
 moduleRoutes.forEach((route) => {

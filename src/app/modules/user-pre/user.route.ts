@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { checkAuth } from "../../middlewares/checkAuth";
+import { validateRequest } from "../../middlewares/validateRequest";
 import { UserControllers } from "./user.controller";
 import { Role } from "./user.interface";
-
+import { adminUpdateUserZodSchema, updateMeZodSchema } from "./user.validation";
 
 // /api/user/
 
@@ -19,6 +20,7 @@ router.get(
 router.put(
   "/:id/update-profile",
   checkAuth(Role.ADMIN),
+  validateRequest(adminUpdateUserZodSchema),
   UserControllers.updateUser,
 );
 
@@ -32,6 +34,7 @@ router.get(
 router.patch(
   "/profile",
   checkAuth(...Object.values(Role)),
+  validateRequest(updateMeZodSchema),
   UserControllers.updateMe,
 );
 

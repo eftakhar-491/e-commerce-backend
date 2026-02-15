@@ -1,64 +1,98 @@
-import httpStatus from "http-status-codes";
-
-import { auth } from "../lib/auth";
-
 import type { NextFunction, Request, Response } from "express";
-import { UserStatus } from "../modules/user-pre/user.interface";
+import type { JwtPayload } from "jsonwebtoken";
+import httpStatus from "http-status-codes";
+import { envVars } from "../config/env";
+import AppError from "../helper/AppError";
+import { prisma } from "../lib/prisma";
+import { Role, UserStatus } from "../modules/user-pre/user.interface";
+import { verifyToken } from "../utils/jwt";
+
+const extractToken = (req: Request) => {
+  const authHeader = req.headers.authorization;
+  const cookieToken = req.cookies?.accessToken as string | undefined;
+
+  if (!authHeader) {
+    return cookieToken;
+  }
+
+  if (authHeader.startsWith("Bearer ")) {
+    return authHeader.slice(7);
+  }
+
+  return authHeader;
+};
 
 export const checkAuth =
   (...authRoles: string[]) =>
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, _: Response, next: NextFunction) => {
     try {
-      const session = await auth.api.getSession({
-        headers: req.headers as Record<string, string>,
+      const accessToken = extractToken(req);
+
+      if (!accessToken) {
+        throw new AppError(httpStatus.UNAUTHORIZED, "No access token received");
+      }
+
+      const decodedToken = verifyToken(
+        accessToken,
+        envVars.JWT_ACCESS_SECRET,
+      ) as JwtPayload;
+
+      const userId = decodedToken.userId as string | undefined;
+
+      if (!userId) {
+        throw new AppError(httpStatus.UNAUTHORIZED, "Invalid access token");
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          emailVerified: true,
+          phone: true,
+          status: true,
+        },
       });
 
-      if (session?.user && !authRoles.includes(session.user.role)) {
-        return res.status(httpStatus.FORBIDDEN).json({
-          success: false,
-          message: "You do not have permission to access this resource",
-        });
+      if (!user) {
+        throw new AppError(httpStatus.NOT_FOUND, "User not found");
       }
 
-      if (!session?.user) {
-        return res.status(httpStatus.UNAUTHORIZED).json({
-          success: false,
-          message: "You are not authorized",
-        });
-      }
-      if (!session.user.emailVerified) {
-        return res.status(httpStatus.FORBIDDEN).json({
-          success: false,
-          message: "Please verify your email to proceed",
-        });
+      if (user.status === UserStatus.BLOCKED || user.status === UserStatus.DELETED) {
+        throw new AppError(
+          httpStatus.FORBIDDEN,
+          `User is ${user.status.toLowerCase()}`,
+        );
       }
 
-      if (session.user.status === UserStatus.BLOCKED) {
-        return res.status(httpStatus.FORBIDDEN).json({
-          success: false,
-          message: "Your account has been blocked. Please contact support.",
-        });
+      if (!user.emailVerified) {
+        throw new AppError(
+          httpStatus.FORBIDDEN,
+          "Please verify your email to continue",
+        );
       }
-      if (session.user.status === UserStatus.DELETED) {
-        return res.status(httpStatus.FORBIDDEN).json({
-          success: false,
-          message: "Your account has been deleted. Please contact support.",
-        });
+
+      if (authRoles.length && !authRoles.includes(user.role)) {
+        throw new AppError(
+          httpStatus.FORBIDDEN,
+          "You do not have permission to access this resource",
+        );
       }
 
       req.user = {
-        id: session.user.id,
-        email: session.user.email,
-        name: session.user.name,
-        role: session.user.role,
-        emailVerified: session.user.emailVerified,
-        phone: session.user.phone,
-        status: session.user.status as UserStatus,
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role as Role,
+        emailVerified: user.emailVerified,
+        phone: user.phone,
+        status: user.status as UserStatus,
       };
 
       next();
     } catch (error) {
-      console.log("error", error);
       next(error);
     }
   };
