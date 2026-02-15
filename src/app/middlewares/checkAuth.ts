@@ -3,7 +3,7 @@ import httpStatus from "http-status-codes";
 import { auth } from "../lib/auth";
 
 import type { NextFunction, Request, Response } from "express";
-import { UserStatus } from "../modules/user/user.interface";
+import { UserStatus } from "../modules/user-pre/user.interface";
 
 export const checkAuth =
   (...authRoles: string[]) =>
