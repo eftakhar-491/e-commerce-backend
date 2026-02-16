@@ -37,12 +37,12 @@ router.post(
   AuthControllers.changePassword,
 );
 
-router.post(
-  "/set-password",
-  checkAuth(...Object.values(Role)),
-  validateRequest(setPasswordZodSchema),
-  AuthControllers.setPassword,
-);
+// router.post(
+//   "/set-password",
+//   checkAuth(...Object.values(Role)),
+//   validateRequest(setPasswordZodSchema),
+//   AuthControllers.setPassword,
+// );
 
 router.post(
   "/forgot-password",

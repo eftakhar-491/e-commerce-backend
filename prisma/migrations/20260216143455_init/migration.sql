@@ -82,6 +82,17 @@ CREATE TABLE "accounts" (
 );
 
 -- CreateTable
+CREATE TABLE "user_credentials" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "passwordHash" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "user_credentials_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "addresses" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -632,6 +643,9 @@ CREATE INDEX "accounts_userId_idx" ON "accounts"("userId");
 CREATE UNIQUE INDEX "accounts_providerId_providerAccountId_key" ON "accounts"("providerId", "providerAccountId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "user_credentials_userId_key" ON "user_credentials"("userId");
+
+-- CreateIndex
 CREATE INDEX "addresses_userId_idx" ON "addresses"("userId");
 
 -- CreateIndex
@@ -855,6 +869,9 @@ ALTER TABLE "sessions" ADD CONSTRAINT "sessions_userId_fkey" FOREIGN KEY ("userI
 
 -- AddForeignKey
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_credentials" ADD CONSTRAINT "user_credentials_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "addresses" ADD CONSTRAINT "addresses_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
