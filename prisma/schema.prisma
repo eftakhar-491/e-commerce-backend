@@ -112,7 +112,7 @@ model User {
   @@index([email])
   @@index([phone])
   @@index([role, status])
-  @@map("users")
+  @@map("User")
 }
 
 model Session {
