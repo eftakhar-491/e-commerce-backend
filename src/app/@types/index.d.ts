@@ -1,4 +1,4 @@
-import type { Role, UserStatus } from "../modules/user-pre/user.interface";
+import type { Role, UserStatus } from "../modules/user/user.interface";
 
 declare global {
   namespace Express {

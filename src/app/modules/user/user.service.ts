@@ -1,234 +1,373 @@
-import { envVars } from "../../config/env";
-import AppError from "../../errorHelpers/AppError";
-import {
-  IAdmin,
-  IAuthProvider,
-  IDriver,
-  IRider,
-  IsActive,
-  IUser,
-  Role,
-} from "./user.interface";
-import { Admin, Driver, Rider, User } from "./user.model";
 import httpStatus from "http-status-codes";
-import bcryptjs from "bcryptjs";
-import { JwtPayload } from "jsonwebtoken";
+import type { Prisma } from "../../../../generated/prisma/client";
+import AppError from "../../helper/AppError";
+import { prisma } from "../../lib/prisma";
 import { QueryBuilder } from "../../utils/QueryBuilder";
 import { userSearchableFields } from "./user.constant";
-import { sendEmail } from "../../utils/sendEmail";
-import { redisClient } from "../../config/redis.config";
-import { generateOtp } from "../../utils/generateOtp";
-import { canUpdateStatus } from "../../helpers/canUpdateIsActive";
-const OTP_EXPIRATION = 2 * 60;
-const createUser = async (payload: Partial<IUser>, Model: any) => {
-  const { email, password, role, ...rest } = payload as Partial<IUser>;
+import type {
+  IAdminUpdateUserPayload,
+  ICreateAddressPayload,
+  IUpdateAddressPayload,
+  IUpdateMePayload,
+} from "./user.interface";
 
-  const isUserExist = await Model.findOne({ email });
+const userSelect = {
+  id: true,
+  name: true,
+  email: true,
+  emailVerified: true,
+  image: true,
+  role: true,
+  phone: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.UserSelect;
 
-  if (isUserExist) {
-    throw new AppError(httpStatus.BAD_REQUEST, "User Already Exist");
-  }
+const userWithAddressesSelect = {
+  ...userSelect,
+  addresses: {
+    orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
+  },
+} satisfies Prisma.UserSelect;
 
-  const hashedPassword = await bcryptjs.hash(
-    password as string,
-    Number(envVars.BCRYPT_SALT_ROUND)
-  );
+const addressSelect = {
+  id: true,
+  userId: true,
+  label: true,
+  recipient: true,
+  phone: true,
+  street: true,
+  city: true,
+  state: true,
+  zipCode: true,
+  country: true,
+  isDefault: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.AddressSelect;
 
-  const authProvider: IAuthProvider = {
-    provider: "credentials",
-    providerId: email as string,
-  };
-
-  const user = await Model.create({
-    email,
-    password: hashedPassword,
-    auths: [authProvider],
-    ...rest,
+const ensureUserExists = async (userId: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true },
   });
 
   if (!user) {
-    throw new AppError(
-      httpStatus.INTERNAL_SERVER_ERROR,
-      "User creation failed"
-    );
+    throw new AppError(httpStatus.NOT_FOUND, "User not found");
   }
-  const otp = generateOtp();
+};
 
-  const redisKey = `otp:${email}`;
-
-  await redisClient.set(redisKey, otp, {
-    expiration: {
-      type: "EX",
-      value: OTP_EXPIRATION,
+const ensurePhoneUnique = async (phone: string, excludedUserId?: string) => {
+  const existing = await prisma.user.findFirst({
+    where: {
+      phone,
+      ...(excludedUserId && { id: { not: excludedUserId } }),
+    },
+    select: {
+      id: true,
     },
   });
 
-  await sendEmail({
-    to: email as string,
-    subject: "Your OTP Code",
-    templateName: "otp",
-    templateData: {
-      name: rest.name,
-      otp: otp,
-    },
-  });
-  return user;
+  if (existing) {
+    throw new AppError(httpStatus.CONFLICT, "Phone number already in use");
+  }
 };
 
-const updateUser = async (
-  userId: string,
-  payload: Partial<IRider> | Partial<IDriver> | Partial<IAdmin>,
-  decodedToken: JwtPayload,
-  Model: any
-) => {
-  if (
-    decodedToken.role === Role.RIDER ||
-    decodedToken.role === Role.DRIVER ||
-    decodedToken.role === Role.ADMIN
-  ) {
-    if (userId !== decodedToken.userId) {
-      throw new AppError(401, "You are not authorized");
-    }
-  }
-
-  const ifUserExist = await Model.findById(userId);
-
-  if (!ifUserExist) {
-    throw new AppError(httpStatus.NOT_FOUND, "User Not Found");
-  }
-
-  const { password: $pass$, ...newUpdatedUser } = await Model.findByIdAndUpdate(
-    userId,
-    payload,
-    {
-      new: true,
-      runValidators: true,
-    }
-  ).lean();
-
-  return newUpdatedUser;
-};
-
-const getAllUsers = async (query: Record<string, string>, Model: any) => {
-  const queryBuilder = new QueryBuilder(Model.find(), query);
-  const usersData = queryBuilder
+const getAllUsers = async (query: Record<string, string>) => {
+  const qb = new QueryBuilder<
+    Prisma.UserWhereInput,
+    Prisma.UserSelect,
+    Prisma.UserOrderByWithRelationInput[]
+  >(query)
     .filter()
     .search(userSearchableFields)
     .sort()
     .fields()
     .paginate();
 
+  const builtQuery = qb.build() as Prisma.UserFindManyArgs;
+
   const [data, meta] = await Promise.all([
-    usersData.build().select("-password"),
-    queryBuilder.getMeta(),
+    prisma.user.findMany({
+      ...builtQuery,
+      select: builtQuery.select ?? userSelect,
+    }),
+    qb.getMeta(prisma.user),
   ]);
 
   return {
-    data,
     meta,
-  };
-};
-const getSingleUser = async (id: string) => {
-  const user = await User.findById(id).select("-password");
-  return {
-    data: user,
+    data,
   };
 };
 
-const getMe = async (userId: string, Model: any) => {
-  const user = await Model.findById(userId).select("-password");
-  return {
-    data: user,
-  };
-};
-const updateUserData = async (
-  userId: string,
-  payload: Partial<IRider | IDriver | IAdmin>,
-  accessRole: Role
-) => {
-  const existingUser = await User.findById(userId).lean();
-  if (!existingUser) {
+const getMe = async (userId: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: userWithAddressesSelect,
+  });
+
+  if (!user) {
     throw new AppError(httpStatus.NOT_FOUND, "User not found");
   }
 
-  const sharedFields: any = {};
-  if (payload.name) sharedFields.name = payload.name;
-  if (payload.email) sharedFields.email = payload.email;
-  if (payload.phone) sharedFields.phone = payload.phone;
-  if (payload.picture) sharedFields.picture = payload.picture;
-  if (payload.address) sharedFields.address = payload.address;
-  if (
-    (!payload.isDeleted || payload.isDeleted) &&
-    typeof payload.isDeleted !== "undefined"
-  )
-    sharedFields.isDeleted = payload.isDeleted;
+  return user;
+};
 
-  if (payload.role && accessRole !== Role.ADMIN) {
-    throw new AppError(httpStatus.FORBIDDEN, "Only admin can change role");
-  } else {
-    // await User.deleteOne({ _id: userId });
+const updateMe = async (userId: string, payload: IUpdateMePayload) => {
+  await ensureUserExists(userId);
 
-    if (payload.role === Role.RIDER) {
-      await Rider.create({ ...existingUser, _id: userId, role: payload.role });
-    } else if (payload.role === Role.DRIVER) {
-      await Driver.create({ ...existingUser, _id: userId, role: payload.role });
-    } else if (payload.role === Role.ADMIN) {
-      await Admin.create({ ...existingUser, _id: userId, role: payload.role });
-    }
+  if (payload.phone) {
+    await ensurePhoneUnique(payload.phone, userId);
   }
-  if (payload.isActive && !canUpdateStatus(accessRole, payload.isActive)) {
+
+  const updatedUser = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      ...(payload.name !== undefined && { name: payload.name }),
+      ...(payload.phone !== undefined && { phone: payload.phone }),
+      ...(payload.image !== undefined && { image: payload.image }),
+      ...(payload.status !== undefined && { status: payload.status }),
+    },
+    select: userWithAddressesSelect,
+  });
+
+  return updatedUser;
+};
+
+const getSingleUser = async (userId: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: userWithAddressesSelect,
+  });
+
+  if (!user) {
+    throw new AppError(httpStatus.NOT_FOUND, "User not found");
+  }
+
+  return user;
+};
+
+const updateUser = async (userId: string, payload: IAdminUpdateUserPayload) => {
+  await ensureUserExists(userId);
+
+  if (payload.phone) {
+    await ensurePhoneUnique(payload.phone, userId);
+  }
+
+  const updatedUser = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      ...(payload.name !== undefined && { name: payload.name }),
+      ...(payload.role !== undefined && { role: payload.role }),
+      ...(payload.emailVerified !== undefined && {
+        emailVerified: payload.emailVerified,
+      }),
+      ...(payload.status !== undefined && { status: payload.status }),
+      ...(payload.phone !== undefined && { phone: payload.phone }),
+    },
+    select: userSelect,
+  });
+
+  return updatedUser;
+};
+
+const createAddress = async (userId: string, payload: ICreateAddressPayload) => {
+  await ensureUserExists(userId);
+
+  const shouldSetDefault =
+    payload.isDefault === true ||
+    (await prisma.address.count({ where: { userId } })) === 0;
+
+  const addressData: Prisma.AddressUncheckedCreateInput = {
+    userId,
+    street: payload.street,
+    city: payload.city,
+    ...(payload.label !== undefined && { label: payload.label }),
+    ...(payload.recipient !== undefined && { recipient: payload.recipient }),
+    ...(payload.phone !== undefined && { phone: payload.phone }),
+    ...(payload.state !== undefined && { state: payload.state }),
+    ...(payload.zipCode !== undefined && { zipCode: payload.zipCode }),
+    ...(payload.country !== undefined && { country: payload.country }),
+    ...(shouldSetDefault && { isDefault: true }),
+  };
+
+  const address = await prisma.$transaction(async (tx) => {
+    if (shouldSetDefault) {
+      await tx.address.updateMany({
+        where: { userId },
+        data: { isDefault: false },
+      });
+    }
+
+    return tx.address.create({
+      data: addressData,
+      select: addressSelect,
+    });
+  });
+
+  return address;
+};
+
+const getMyAddresses = async (userId: string) => {
+  await ensureUserExists(userId);
+
+  const addresses = await prisma.address.findMany({
+    where: { userId },
+    orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
+    select: addressSelect,
+  });
+
+  return addresses;
+};
+
+const updateMyAddress = async (
+  userId: string,
+  addressId: string,
+  payload: IUpdateAddressPayload,
+) => {
+  const existingAddress = await prisma.address.findFirst({
+    where: {
+      id: addressId,
+      userId,
+    },
+    select: {
+      id: true,
+      isDefault: true,
+    },
+  });
+
+  if (!existingAddress) {
+    throw new AppError(httpStatus.NOT_FOUND, "Address not found");
+  }
+
+  if (payload.isDefault === false && existingAddress.isDefault) {
     throw new AppError(
-      httpStatus.FORBIDDEN,
-      "You are not allowed to change isActive status"
+      httpStatus.BAD_REQUEST,
+      "Cannot unset the current default address directly",
     );
   }
 
-  const updatedUser = await User.findByIdAndUpdate(userId, sharedFields, {
-    new: true,
-    runValidators: true,
-  }).lean();
-
-  let roleDoc;
-  const role = existingUser.role || accessRole;
-
-  switch (role) {
-    case Role.RIDER:
-      roleDoc = await Rider.findByIdAndUpdate(userId, payload, {
-        new: true,
-        runValidators: true,
-      }).lean();
-
-      break;
-
-    case Role.DRIVER:
-      roleDoc = await Driver.findByIdAndUpdate(userId, payload, {
-        new: true,
-        runValidators: true,
-      }).lean();
-      break;
-
-    case Role.ADMIN:
-      roleDoc = await Admin.findByIdAndUpdate(userId, payload, {
-        new: true,
-        runValidators: true,
-      }).lean();
-      break;
-  }
-
-  if (updatedUser?.password) {
-    delete updatedUser.password;
-  }
-
-  return {
-    user: { ...updatedUser, ...roleDoc },
+  const addressData: Prisma.AddressUncheckedUpdateInput = {
+    ...(payload.label !== undefined && { label: payload.label }),
+    ...(payload.recipient !== undefined && { recipient: payload.recipient }),
+    ...(payload.phone !== undefined && { phone: payload.phone }),
+    ...(payload.street !== undefined && { street: payload.street }),
+    ...(payload.city !== undefined && { city: payload.city }),
+    ...(payload.state !== undefined && { state: payload.state }),
+    ...(payload.zipCode !== undefined && { zipCode: payload.zipCode }),
+    ...(payload.country !== undefined && { country: payload.country }),
+    ...(payload.isDefault !== undefined && { isDefault: payload.isDefault }),
   };
+
+  if (payload.isDefault) {
+    const updatedAddress = await prisma.$transaction(async (tx) => {
+      await tx.address.updateMany({
+        where: { userId },
+        data: { isDefault: false },
+      });
+
+      return tx.address.update({
+        where: { id: addressId },
+        data: {
+          ...addressData,
+          isDefault: true,
+        },
+        select: addressSelect,
+      });
+    });
+
+    return updatedAddress;
+  }
+
+  const updatedAddress = await prisma.address.update({
+    where: { id: addressId },
+    data: addressData,
+    select: addressSelect,
+  });
+
+  return updatedAddress;
+};
+
+const deleteMyAddress = async (userId: string, addressId: string) => {
+  const address = await prisma.address.findFirst({
+    where: {
+      id: addressId,
+      userId,
+    },
+    select: {
+      id: true,
+      isDefault: true,
+    },
+  });
+
+  if (!address) {
+    throw new AppError(httpStatus.NOT_FOUND, "Address not found");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.address.delete({
+      where: { id: addressId },
+    });
+
+    if (address.isDefault) {
+      const fallbackAddress = await tx.address.findFirst({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        select: { id: true },
+      });
+
+      if (fallbackAddress) {
+        await tx.address.update({
+          where: { id: fallbackAddress.id },
+          data: { isDefault: true },
+        });
+      }
+    }
+  });
+};
+
+const setDefaultAddress = async (userId: string, addressId: string) => {
+  const address = await prisma.address.findFirst({
+    where: {
+      id: addressId,
+      userId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!address) {
+    throw new AppError(httpStatus.NOT_FOUND, "Address not found");
+  }
+
+  const updatedAddress = await prisma.$transaction(async (tx) => {
+    await tx.address.updateMany({
+      where: { userId },
+      data: { isDefault: false },
+    });
+
+    return tx.address.update({
+      where: { id: addressId },
+      data: { isDefault: true },
+      select: addressSelect,
+    });
+  });
+
+  return updatedAddress;
 };
 
 export const UserServices = {
-  createUser,
   getAllUsers,
   getSingleUser,
   updateUser,
   getMe,
-  updateUserData,
+  updateMe,
+  createAddress,
+  getMyAddresses,
+  updateMyAddress,
+  deleteMyAddress,
+  setDefaultAddress,
 };
