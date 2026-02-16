@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { checkAuth } from "../../middlewares/checkAuth";
 import { CategoryControllers } from "./category.controller";
-import { Role } from "../user/user.interface";
+import { Role } from "../user-pre/user.interface";
 
 // /api/category/
 
