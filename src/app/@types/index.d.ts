@@ -1,16 +1,18 @@
-import { Request } from "express";
+import type { Role, UserStatus } from "../modules/user-pre/user.interface";
+
 declare global {
   namespace Express {
+    interface User {
+      id: string;
+      email: string;
+      name: string | null;
+      role: Role;
+      emailVerified: boolean;
+      phone: string | null;
+      status: UserStatus;
+    }
+
     interface Request {
-      user?: {
-        id: string;
-        email: string;
-        name?: string;
-        role: string;
-        emailVerified: boolean;
-        phone?: string;
-        status?: string;
-      };
       file?: {
         path: string;
         filename: string;
@@ -24,4 +26,5 @@ declare global {
     }
   }
 }
+
 export {};
