@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { checkAuth } from "../../middlewares/checkAuth";
 
-import { Role } from "../user/user.interface";
+import { Role } from "../user-pre/user.interface";
 import { validateRequest } from "../../middlewares/validateRequest";
 
 import { uploadImages } from "../../middlewares/uploadImages";
