@@ -23,6 +23,9 @@ interface EnvConfig {
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
   GOOGLE_CALLBACK_URL: string;
+  SUPABASE_URL?: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+  SUPABASE_BUCKET?: string;
   EMAIL_SENDER: {
     SMTP_USER: string;
     SMTP_PASS: string;
@@ -66,7 +69,7 @@ const loadEnvVariables = (): EnvConfig => {
     }
   });
 
-  return {
+  const envConfig: EnvConfig = {
     PORT: process.env.PORT as string,
     DATABASE_URL: process.env.DATABASE_URL!,
     NODE_ENV: process.env.NODE_ENV as "development" | "production",
@@ -95,6 +98,20 @@ const loadEnvVariables = (): EnvConfig => {
       SMTP_FROM: process.env.SMTP_FROM!,
     },
   };
+
+  if (process.env.SUPABASE_URL) {
+    envConfig.SUPABASE_URL = process.env.SUPABASE_URL;
+  }
+
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    envConfig.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  }
+
+  if (process.env.SUPABASE_BUCKET) {
+    envConfig.SUPABASE_BUCKET = process.env.SUPABASE_BUCKET;
+  }
+
+  return envConfig;
 };
 
 export const envVars = loadEnvVariables();

@@ -19,7 +19,7 @@ declare global {
         public_id: string;
       };
       uploadedImages?: {
-        storageType?: "local" | "cloudinary" | "custom";
+        storageType?: "link" | "local" | "cloudinary" | "supabase";
         src?: string;
         publicId?: string;
       }[];

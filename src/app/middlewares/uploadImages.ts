@@ -1,107 +1,236 @@
-import type { Request, Response, NextFunction } from "express";
-import { uploadProductImage, uploadWithCloudinary } from "../lib/multer";
-import AppError from "../helper/AppError";
+import type { NextFunction, Request, Response } from "express";
+import path from "path";
+import { v4 as uuidv4 } from "uuid";
 import httpStatus from "http-status-codes";
+import AppError from "../helper/AppError";
+import {
+  uploadForSupabase,
+  uploadProductImage,
+  uploadWithCloudinary,
+} from "../lib/multer";
+import { getSupabaseBucket, getSupabaseClient } from "../lib/supabase";
+
+type StorageType = "link" | "local" | "cloudinary" | "supabase";
+
+const storageTypes: StorageType[] = ["link", "local", "cloudinary", "supabase"];
+
+const storageTypeAliases: Record<string, StorageType> = {
+  cloudnery: "cloudinary",
+  cloudenery: "cloudinary",
+  cloudeniary: "cloudinary",
+  cloudinery: "cloudinary",
+  subabase: "supabase",
+  subaabase: "supabase",
+};
+
+const getStorageType = (req: Request): StorageType => {
+  const storageType = (req.query.storageType as string | undefined)
+    ?.trim()
+    .toLowerCase();
+
+  const normalizedStorageType = storageType
+    ? (storageTypeAliases[storageType] ?? storageType)
+    : undefined;
+
+  if (
+    !normalizedStorageType ||
+    !storageTypes.includes(normalizedStorageType as StorageType)
+  ) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Invalid storageType. Use one of: link, local, cloudinary, supabase",
+    );
+  }
+
+  return normalizedStorageType as StorageType;
+};
+
+const extractFiles = (req: Request): Express.Multer.File[] => {
+  if (!req.files) return [];
+
+  if (Array.isArray(req.files)) {
+    return req.files;
+  }
+
+  const filesByField = req.files as Record<string, Express.Multer.File[]>;
+  return Object.values(filesByField).flat();
+};
+
+const uploadWithMulter = (
+  req: Request,
+  res: Response,
+  storageType: StorageType,
+): Promise<Express.Multer.File[]> => {
+  const uploader =
+    storageType === "cloudinary"
+      ? uploadWithCloudinary
+      : storageType === "supabase"
+        ? uploadForSupabase
+        : uploadProductImage;
+
+  return new Promise((resolve, reject) => {
+    uploader.fields([
+      { name: "files", maxCount: 20 },
+      { name: "images", maxCount: 20 },
+      { name: "videos", maxCount: 20 },
+    ])(req, res, (err) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      resolve(extractFiles(req));
+    });
+  });
+};
+
+const buildMediaType = (mimeType: string) => {
+  if (mimeType.startsWith("video/")) {
+    return "video";
+  }
+
+  return "image";
+};
+
+const ensureLinkPayload = (req: Request) => {
+  const mediaUrlsRaw = req.body.mediaUrls;
+  const mediaUrlRaw = req.body.mediaUrl;
+
+  let mediaUrls: unknown[] = [];
+
+  if (Array.isArray(mediaUrlsRaw)) {
+    mediaUrls = mediaUrlsRaw;
+  } else if (typeof mediaUrlsRaw === "string" && mediaUrlsRaw.trim()) {
+    const trimmed = mediaUrlsRaw.trim();
+
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+
+        if (Array.isArray(parsed)) {
+          mediaUrls = parsed;
+        }
+      } catch {
+        mediaUrls = [trimmed];
+      }
+    } else {
+      mediaUrls = [trimmed];
+    }
+  } else if (mediaUrlRaw) {
+    mediaUrls = [mediaUrlRaw];
+  }
+
+  if (!mediaUrls.length) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "For storageType=link, provide mediaUrl or mediaUrls[]",
+    );
+  }
+
+  mediaUrls.forEach((url) => {
+    if (typeof url !== "string" || !/^https?:\/\//i.test(url)) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        "Each mediaUrl must be a valid http/https URL",
+      );
+    }
+  });
+
+  return mediaUrls as string[];
+};
 
 export const uploadImages = async (
   req: Request,
   res: Response,
   next: NextFunction,
 ) => {
-  const storageType = req.query.storageType as
-    | "local"
-    | "cloudinary"
-    | "custom"
-    | undefined;
+  try {
+    const storageType = getStorageType(req);
+    req.uploadedImages = [];
 
-  req.uploadedImages = [];
+    if (storageType === "link") {
+      const mediaUrls = ensureLinkPayload(req);
 
-  if (!storageType) return next();
+      mediaUrls.forEach((url) => {
+        req.uploadedImages!.push({
+          storageType: "link",
+          src: url,
+          publicId: `link:${uuidv4()}`,
+        });
+      });
 
-  // ✅ CUSTOM (already uploaded elsewhere)
-  if (storageType === "custom") {
-    if (!Array.isArray(req.body.images)) {
-      throw new AppError(httpStatus.BAD_REQUEST, "Images array required");
+      next();
+      return;
     }
 
-    req.body.images.forEach((img: any) => {
-      if (!img.src || !img.publicId) {
+    const files = await uploadWithMulter(req, res, storageType);
+
+    if (!files.length) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        "No files received. Send files in 'files', 'images', or 'videos' field",
+      );
+    }
+
+    if (storageType === "local") {
+      files.forEach((file) => {
+        req.uploadedImages!.push({
+          storageType: "local",
+          src: `/api/uploads/media/${file.filename}`,
+          publicId: `local:${file.filename}`,
+        });
+      });
+
+      next();
+      return;
+    }
+
+    if (storageType === "cloudinary") {
+      files.forEach((file) => {
+        req.uploadedImages!.push({
+          storageType: "cloudinary",
+          src: file.path,
+          publicId: `cloudinary:${file.filename}`,
+        });
+      });
+
+      next();
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    const bucket = getSupabaseBucket();
+
+    for (const file of files) {
+      const ext = path.extname(file.originalname) || "";
+      const mediaType = buildMediaType(file.mimetype);
+      const objectPath = `${mediaType}s/${Date.now()}-${uuidv4()}${ext}`;
+
+      const { error } = await supabase.storage
+        .from(bucket)
+        .upload(objectPath, file.buffer, {
+          upsert: false,
+          contentType: file.mimetype,
+        });
+
+      if (error) {
         throw new AppError(
           httpStatus.BAD_REQUEST,
-          "Custom image src and publicId required",
+          `Supabase upload failed: ${error.message}`,
         );
       }
 
+      const { data } = supabase.storage.from(bucket).getPublicUrl(objectPath);
+
       req.uploadedImages!.push({
-        storageType: "custom",
-        src: img.src,
-        publicId: img.publicId,
-      });
-    });
-
-    return next();
-  }
-
-  // ✅ LOCAL / CLOUDINARY
-  const uploader =
-    storageType === "cloudinary" ? uploadWithCloudinary : uploadProductImage;
-
-  uploader.array("images", 10)(req, res, (err) => {
-    if (err) return next(err);
-
-    if (req.files && Array.isArray(req.files)) {
-      req.files.forEach((file: any) => {
-        req.uploadedImages!.push({
-          storageType,
-          src: file.path,
-          publicId: file.filename,
-        });
+        storageType: "supabase",
+        src: data.publicUrl,
+        publicId: `supabase:${objectPath}`,
       });
     }
 
     next();
-  });
+  } catch (error) {
+    next(error);
+  }
 };
-
-// // category.upload.ts
-// import type { NextFunction, Request, Response } from "express";
-// import { uploadProductImage, uploadWithCloudinary } from "../lib/multer";
-// import AppError from "../helper/AppError";
-// import httpStatus from "http-status-codes";
-
-// export const uploadImage = async (
-//   req: Request,
-//   res: Response,
-//   next: NextFunction,
-// ) => {
-//   const storageType = req.query.storageType as
-//     | "local"
-//     | "cloudinary"
-//     | "custom"
-//     | undefined;
-
-//   if (!storageType) {
-//     return next();
-//   }
-
-//   if (storageType === "custom") {
-//     if (!req.body.src || !req.body.publicId) {
-//       throw new AppError(
-//         httpStatus.BAD_REQUEST,
-//         "Custom image src and publicId required",
-//       );
-//     }
-//     next();
-//     return;
-//   }
-
-//   if (storageType === "cloudinary") {
-//     await uploadWithCloudinary.single("image")(req, res, next);
-
-//     return;
-//   }
-//   if (storageType === "local" || !storageType) {
-//     await uploadProductImage.single("image")(req, res, next);
-//     return;
-//   }
-// };
