@@ -4,25 +4,17 @@ export const app = express();
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import { envVars } from "./app/config/env";
-import expressSession from "express-session";
+import passport from "passport";
+import "./app/config/passport";
 
 import { router } from "./app/routes";
-import { toNodeHandler } from "better-auth/node";
-import { auth } from "./app/lib/auth";
 import { globalErrorHandler } from "./app/middlewares/globalErrorHandler";
 import notFound from "./app/middlewares/notFound";
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(
-  expressSession({
-    secret: envVars.EXPRESS_SESSION_SECRET as string,
-    resave: false,
-    saveUninitialized: false,
-  }),
-);
-
 app.use(cookieParser());
+app.use(passport.initialize());
 
 app.use(
   cors({
@@ -41,7 +33,6 @@ app.use(
   }),
 );
 
-app.use("/api/auth", toNodeHandler(auth));
 app.use("/api", router);
 
 app.get("/", (_, res) => {

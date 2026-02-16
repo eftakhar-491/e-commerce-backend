@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { AuthRoutes } from "../modules/auth/auth.route";
-import { UserRoutes } from "../modules/user/user.route";
-import { ProductRoutes } from "../modules/product/product.route";
+import { UserRoutes } from "../modules/user-pre/user.route";
+// import { ProductRoutes } from "../modules/product/product.route";
 import { CategoryRoutes } from "../modules/category/category.route";
 import { ImageRoutes } from "../modules/image/image.route";
 
@@ -9,13 +9,17 @@ export const router = Router();
 
 const moduleRoutes = [
   {
+    path: "/auth",
+    route: AuthRoutes,
+  },
+  {
     path: "/user",
     route: UserRoutes,
   },
-  {
-    path: "/product",
-    route: ProductRoutes,
-  },
+  // {
+  //   path: "/product",
+  //   route: ProductRoutes,
+  // },
 
   {
     path: "/category",
@@ -26,26 +30,6 @@ const moduleRoutes = [
     route: ImageRoutes,
   },
 
-  // {
-  //   path: "/user",
-  //   route: UserRoutes,
-  // },
-  //   {
-  //     path: "/auth",
-  //     route: AuthRoutes,
-  //   },
-  //   {
-  //     path: "/otp",
-  //     route: OtpRoutes,
-  //   },
-  //   {
-  //     path: "/ride",
-  //     route: RideRoutes,
-  //   },
-  //   {
-  //     path: "/driver",
-  //     route: DriverRoutes,
-  //   },
 ];
 
 moduleRoutes.forEach((route) => {

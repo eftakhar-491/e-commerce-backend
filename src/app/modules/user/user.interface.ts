@@ -1,23 +1,62 @@
+import { ObjectId, Types } from "mongoose";
+
 export enum Role {
   ADMIN = "ADMIN",
-  USER = "USER",
+  RIDER = "RIDER",
+  DRIVER = "DRIVER",
 }
 
-export enum UserStatus {
+export interface IAuthProvider {
+  provider: "google" | "credentials";
+  providerId: string;
+}
+
+export enum IsActive {
   ACTIVE = "ACTIVE",
-  BLOCKED = "BLOCKED",
-  DELETED = "DELETED",
+  BLOCK = "BLOCK",
+  INACTIVE = "INACTIVE",
 }
-
+export enum IsDriverActive {
+  REQUESTED = "REQUESTED",
+  APPROVED = "APPROVED",
+  SUSPENDED = "SUSPENDED",
+  INACTIVE = "INACTIVE",
+}
+export enum IsAdminActive {
+  REQUESTED = "REQUESTED",
+  APPROVED = "APPROVED",
+  SUSPENDED = "SUSPENDED",
+}
+export interface IVehicle {
+  type: string;
+  number: string;
+  model: string;
+}
 export interface IUser {
-  id: string;
+  _id?: Types.ObjectId;
   name: string;
   email: string;
+  password?: string;
+  phone?: string;
+  picture?: string;
+  address?: string;
+  isDeleted?: boolean;
+  isVerified?: boolean;
   role: Role;
-  image?: string | null;
-  phone: string;
-  status: UserStatus;
-  emailVerified: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+  auths: IAuthProvider[];
+  createdAt?: Date;
+}
+
+export interface IRider extends IUser {
+  isActive?: IsActive;
+}
+
+export interface IDriver extends IUser {
+  isActive?: IsDriverActive;
+  isOnline?: boolean;
+  vehicle: IVehicle;
+  isRideAccepted?: ObjectId;
+}
+export interface IAdmin extends IUser {
+  isActive: IsAdminActive;
 }
