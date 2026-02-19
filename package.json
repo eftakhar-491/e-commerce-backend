@@ -9,7 +9,8 @@
     "build": "npx prisma generate && tsc",
     "deploy": "vercel --prod",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "npx tsx watch src/server.ts"
+    "dev": "npx tsx watch src/server.ts",
+    "postinstall": "prisma generate"
   },
   "keywords": [],
   "author": "",
