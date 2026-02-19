@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { checkAuth } from "../../middlewares/checkAuth";
 import { validateRequest } from "../../middlewares/validateRequest";
-import { Role } from "../user-pre/user.interface";
+import { Role } from "../user/user.interface";
 import { CategoryControllers } from "./category.controller";
 import {
   createCategoryZodSchema,
@@ -18,7 +18,7 @@ router.post(
   validateRequest(createCategoryZodSchema),
   CategoryControllers.createCategory,
 );
-// falsy route
+
 router.get(
   "/",
   checkAuth(...Object.values(Role)),
