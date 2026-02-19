@@ -1,4 +1,4 @@
-import type { Role, UserStatus } from "../modules/user-pre/user.interface";
+import type { Role, UserStatus } from "../modules/user/user.interface";
 
 declare global {
   namespace Express {
@@ -19,7 +19,7 @@ declare global {
         public_id: string;
       };
       uploadedImages?: {
-        storageType?: "local" | "cloudinary" | "custom";
+        storageType?: "link" | "local" | "cloudinary" | "supabase";
         src?: string;
         publicId?: string;
       }[];

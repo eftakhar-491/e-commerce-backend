@@ -4,7 +4,7 @@ import httpStatus from "http-status-codes";
 import { envVars } from "../config/env";
 import AppError from "../helper/AppError";
 import { prisma } from "../lib/prisma";
-import { Role, UserStatus } from "../modules/user-pre/user.interface";
+import { Role, UserStatus } from "../modules/user/user.interface";
 import { verifyToken } from "../utils/jwt";
 
 const extractToken = (req: Request) => {

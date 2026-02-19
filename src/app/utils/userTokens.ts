@@ -3,7 +3,7 @@ import httpStatus from "http-status-codes";
 import { envVars } from "../config/env";
 import AppError from "../helper/AppError";
 import { prisma } from "../lib/prisma";
-import { UserStatus } from "../modules/user-pre/user.interface";
+import { UserStatus } from "../modules/user/user.interface";
 import { generateToken, verifyToken } from "./jwt";
 
 export interface ITokenUserPayload {
