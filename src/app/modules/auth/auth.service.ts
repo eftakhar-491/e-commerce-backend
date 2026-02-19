@@ -7,7 +7,7 @@ import { prisma } from "../../lib/prisma";
 import { sendEmail } from "../../utils/sendEmail";
 import { createNewAccessTokenWithRefreshToken } from "../../utils/userTokens";
 import { generateToken, verifyToken } from "../../utils/jwt";
-import { UserStatus } from "../user-pre/user.interface";
+import { UserStatus } from "../user/user.interface";
 import type {
   IChangePasswordPayload,
   IForgotPasswordPayload,

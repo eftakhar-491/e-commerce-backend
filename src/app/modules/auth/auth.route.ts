@@ -4,7 +4,7 @@ import passport from "passport";
 import { envVars } from "../../config/env";
 import { checkAuth } from "../../middlewares/checkAuth";
 import { validateRequest } from "../../middlewares/validateRequest";
-import { Role } from "../user-pre/user.interface";
+import { Role } from "../user/user.interface";
 import { AuthControllers } from "./auth.controller";
 import {
   changePasswordZodSchema,
