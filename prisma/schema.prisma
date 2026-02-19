@@ -330,16 +330,6 @@ model VariantOption {
   compareAtPrice   Decimal? @db.Decimal(10,2)
   costPrice        Decimal? @db.Decimal(10,2)
   stock            Int      @default(0)
-  reservedStock    Int      @default(0) // Stock in pending carts/orders
-  lowStockThreshold Int @default(5)
-
-  // Option attributes (e.g., size: "M", color: "Red")
-  option1Name  String?  // e.g., "Size"
-  option1Value String?  // e.g., "M"
-  option2Name  String?  // e.g., "Color"
-  option2Value String?  // e.g., "Red"
-  option3Name  String?  // e.g., "Material"
-  option3Value String?  // e.g., "Cotton"
 
   isActive    Boolean  @default(true)
 

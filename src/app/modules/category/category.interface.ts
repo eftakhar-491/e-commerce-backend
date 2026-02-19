@@ -1,31 +1,72 @@
-import type { IProductImage } from "../image/image.interface";
-import type { IProduct } from "../product/product.interface";
-
 export interface ICategory {
   id: string;
-
   name: string;
   slug: string;
-  description?: string | null;
-
-  parentId?: string | null;
-  parent?: ICategory | null;
-  children?: ICategory[];
-  images?: IProductImage[];
+  description: string | null;
+  image: string | null;
   isActive: boolean;
-
-  products?: IProduct[];
-
+  sortOrder: number;
+  parentId: string | null;
+  metaTitle: string | null;
+  metaDescription: string | null;
+  metaKeywords: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface CreateCategoryDTO {
+export interface ICreateCategoryPayload {
   name: string;
   slug: string;
   description?: string;
-  images?: IProductImage[];
-  parentId?: string;
+  image?: string;
   isActive?: boolean;
-  imageId?: string;
+  sortOrder?: number;
+  parentId?: string | null;
+  metaTitle?: string;
+  metaDescription?: string;
+  metaKeywords?: string;
+}
+
+export interface IUpdateCategoryPayload {
+  name?: string;
+  slug?: string;
+  description?: string;
+  image?: string;
+  isActive?: boolean;
+  sortOrder?: number;
+  parentId?: string | null;
+  metaTitle?: string;
+  metaDescription?: string;
+  metaKeywords?: string;
+}
+
+export interface ICollectionProduct {
+  id: string;
+  title: string;
+  slug: string;
+  shortDesc: string | null;
+  brand: string | null;
+  price: unknown;
+  compareAtPrice: unknown;
+  hasVariants: boolean;
+  isFeatured: boolean;
+  images: {
+    id: string;
+    src: string;
+    altText: string | null;
+    isPrimary: boolean;
+  }[];
+}
+
+export interface ICategoryCollectionNode {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  image: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  parentId: string | null;
+  products: ICollectionProduct[];
+  children: ICategoryCollectionNode[];
 }
