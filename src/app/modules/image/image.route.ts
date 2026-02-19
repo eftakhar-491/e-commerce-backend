@@ -15,7 +15,7 @@ const router = Router();
 // admin route
 
 router.post(
-  "/create",
+  "/upload",
   checkAuth(Role.ADMIN),
   uploadImages,
   ImageController.createImages,
