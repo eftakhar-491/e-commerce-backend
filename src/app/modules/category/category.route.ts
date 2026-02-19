@@ -18,7 +18,7 @@ router.post(
   validateRequest(createCategoryZodSchema),
   CategoryControllers.createCategory,
 );
-
+// falsy route
 router.get(
   "/",
   checkAuth(...Object.values(Role)),
@@ -36,7 +36,6 @@ router.patch(
 
 router.get(
   "/:id",
-  checkAuth(...Object.values(Role)),
   CategoryControllers.getCategoryById,
 );
 
