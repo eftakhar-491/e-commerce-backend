@@ -1,217 +1,202 @@
-import { NextFunction, Request, Response } from "express";
-
+import type { Request, Response } from "express";
+import httpStatus from "http-status-codes";
+import AppError from "../../helper/AppError";
 import { catchAsync } from "../../utils/catchAsync";
 import { sendResponse } from "../../utils/sendResponse";
-import httpStatus from "http-status-codes";
+import type {
+  IAdminUpdateUserPayload,
+  ICreateAddressPayload,
+  IUpdateAddressPayload,
+  IUpdateMePayload,
+} from "./user.interface";
 import { UserServices } from "./user.service";
-import AppError from "../../errorHelpers/AppError";
 
-import { createUserTokens } from "../../utils/userTokens";
-import { setAuthCookie } from "../../utils/setCookie";
-import { JwtPayload } from "jsonwebtoken";
-import { envVars } from "../../config/env";
-import { verifyToken } from "../../utils/jwt";
-import { Role } from "./user.interface";
-import { Admin, Driver, Rider, User } from "./user.model";
-
-const createUser = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    let user;
-
-    const userRole = req.body.role;
-    switch (userRole) {
-      case Role.RIDER:
-        // Handle rider specific logic
-        user = await UserServices.createUser(req.body, Rider);
-        break;
-      case Role.DRIVER:
-        // Handle driver specific logic
-        user = await UserServices.createUser(req.body, Driver);
-        break;
-      case Role.ADMIN:
-        user = await UserServices.createUser(req.body, Admin);
-
-        break;
-      default:
-        throw new AppError(httpStatus.FORBIDDEN, "Invalid user role");
-    }
-    if (!user) {
-      throw new AppError(
-        httpStatus.INTERNAL_SERVER_ERROR,
-        "User creation failed"
-      );
-    }
-    const userTokens = await createUserTokens(user);
-    const { password: $pass$, ...rest } = user.toObject();
-    setAuthCookie(res, userTokens);
-
-    sendResponse(res, {
-      success: true,
-      statusCode: httpStatus.OK,
-      message: "User created and logged in successfully",
-      data: {
-        accessToken: userTokens.accessToken,
-        refreshToken: userTokens.refreshToken,
-        user: rest,
-      },
-    });
+const getParamAsString = (value: string | string[] | undefined, key: string) => {
+  if (!value || Array.isArray(value)) {
+    throw new AppError(httpStatus.BAD_REQUEST, `${key} is required`);
   }
-);
-const updateUser = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const userId = req.params.id;
-    const token = req.headers.authorization;
-    const verifiedToken = verifyToken(
-      token as string,
-      envVars.JWT_ACCESS_SECRET as string
-    ) as JwtPayload;
 
-    // const verifiedToken = req.user;
-    let user;
-    const payload = req.body;
+  return value;
+};
 
-    const userRole = (req.user as JwtPayload).role as string;
+const getAllUsers = catchAsync(async (req: Request, res: Response) => {
+  const query = req.query as Record<string, string>;
+  const users = await UserServices.getAllUsers(query);
 
-    switch (userRole) {
-      case Role.RIDER:
-        // Handle rider specific logic
-        user = await UserServices.updateUser(
-          userId,
-          payload,
-          verifiedToken as JwtPayload,
-          Rider
-        );
-        break;
-      case Role.DRIVER:
-        // Handle driver specific logic
-        user = await UserServices.updateUser(
-          userId,
-          payload,
-          verifiedToken as JwtPayload,
-          Driver
-        );
-        break;
-      case Role.ADMIN:
-        user = await UserServices.updateUser(
-          userId,
-          payload,
-          verifiedToken as JwtPayload,
-          Admin
-        );
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "All users retrieved successfully",
+    data: users.data,
+    meta: users.meta,
+  });
+});
 
-        break;
-      default:
-        throw new AppError(httpStatus.FORBIDDEN, "Invalid user role");
-    }
+const getMe = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user?.id;
 
-    // res.status(httpStatus.CREATED).json({
-    //     message: "User Created Successfully",
-    //     user
-    // })
-
-    sendResponse(res, {
-      success: true,
-      statusCode: httpStatus.OK,
-      message: "User Updated Successfully",
-      data: user,
-    });
+  if (!userId) {
+    throw new AppError(httpStatus.UNAUTHORIZED, "User not authenticated");
   }
-);
 
-const getAllUsers = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const query = req.query;
-    let user;
-    const userRole = (req.user as JwtPayload).role as string;
-    try {
-      user = await UserServices.getAllUsers(
-        query as Record<string, string>,
-        User
-      );
-    } catch (error) {
-      throw new AppError(404, "All user Retrieved ");
-    }
+  const user = await UserServices.getMe(userId);
 
-    sendResponse(res, {
-      success: true,
-      statusCode: httpStatus.OK,
-      message: "All Users Retrieved Successfully",
-      data: user?.data,
-      meta: user?.meta,
-    });
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "User profile retrieved successfully",
+    data: user,
+  });
+});
+
+const updateMe = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+
+  if (!userId) {
+    throw new AppError(httpStatus.UNAUTHORIZED, "User not authenticated");
   }
-);
-const getMe = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const decodedToken = req.user as JwtPayload;
-    if (!decodedToken || !decodedToken.userId) {
-      throw new AppError(httpStatus.UNAUTHORIZED, "User not authenticated");
-    }
-    let user;
 
-    const userRole = (req.user as JwtPayload).role as string;
-    switch (userRole) {
-      case Role.RIDER:
-        // Handle rider specific logic
-        user = await UserServices.getMe(decodedToken.userId, Rider);
-        break;
-      case Role.DRIVER:
-        // Handle driver specific logic
-        user = await UserServices.getMe(decodedToken.userId, Driver);
-        break;
-      case Role.ADMIN:
-        user = await UserServices.getMe(decodedToken.userId, Admin);
-        break;
-      default:
-        throw new AppError(httpStatus.FORBIDDEN, "Invalid user role");
-    }
+  const payload = req.body as IUpdateMePayload;
+  const updatedUser = await UserServices.updateMe(userId, payload);
 
-    sendResponse(res, {
-      success: true,
-      statusCode: httpStatus.OK,
-      message: "Your profile Retrieved Successfully",
-      data: user.data,
-    });
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "User profile updated successfully",
+    data: updatedUser,
+  });
+});
+
+const getSingleUser = catchAsync(async (req: Request, res: Response) => {
+  const userId = getParamAsString(req.params.id, "User id");
+
+  const user = await UserServices.getSingleUser(userId);
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "User retrieved successfully",
+    data: user,
+  });
+});
+
+const updateUser = catchAsync(async (req: Request, res: Response) => {
+  const userId = getParamAsString(req.params.id, "User id");
+
+  const payload = req.body as IAdminUpdateUserPayload;
+  const user = await UserServices.updateUser(userId, payload);
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "User updated successfully",
+    data: user,
+  });
+});
+
+const createAddress = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+
+  if (!userId) {
+    throw new AppError(httpStatus.UNAUTHORIZED, "User not authenticated");
   }
-);
-const getSingleUser = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const id = req.params.id;
 
-    const user = await UserServices.getSingleUser(id);
+  const payload = req.body as ICreateAddressPayload;
+  const address = await UserServices.createAddress(userId, payload);
 
-    sendResponse(res, {
-      success: true,
-      statusCode: httpStatus.OK,
-      message: "User Retrieved Successfully",
-      data: user.data,
-    });
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.CREATED,
+    message: "Address created successfully",
+    data: address,
+  });
+});
+
+const getMyAddresses = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+
+  if (!userId) {
+    throw new AppError(httpStatus.UNAUTHORIZED, "User not authenticated");
   }
-);
-export const updateUserData = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const userId = req.params.userId;
-    const payload = req.body;
-    const accessRole = (req.user as JwtPayload).role as Role;
-    const user = await UserServices.updateUserData(userId, payload, accessRole);
 
-    if (!user) {
-      return next(new AppError(httpStatus.NOT_FOUND, "User not found"));
-    }
+  const addresses = await UserServices.getMyAddresses(userId);
 
-    sendResponse(res, {
-      success: true,
-      statusCode: httpStatus.OK,
-      message: "User Data Updated Successfully",
-      data: user,
-    });
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Addresses retrieved successfully",
+    data: addresses,
+  });
+});
+
+const updateMyAddress = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+  const addressId = getParamAsString(req.params.addressId, "Address id");
+
+  if (!userId) {
+    throw new AppError(httpStatus.UNAUTHORIZED, "User not authenticated");
   }
-);
+
+  const payload = req.body as IUpdateAddressPayload;
+  const updatedAddress = await UserServices.updateMyAddress(
+    userId,
+    addressId,
+    payload,
+  );
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Address updated successfully",
+    data: updatedAddress,
+  });
+});
+
+const deleteMyAddress = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+  const addressId = getParamAsString(req.params.addressId, "Address id");
+
+  if (!userId) {
+    throw new AppError(httpStatus.UNAUTHORIZED, "User not authenticated");
+  }
+
+  await UserServices.deleteMyAddress(userId, addressId);
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Address deleted successfully",
+    data: null,
+  });
+});
+
+const setDefaultAddress = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+  const addressId = getParamAsString(req.params.addressId, "Address id");
+
+  if (!userId) {
+    throw new AppError(httpStatus.UNAUTHORIZED, "User not authenticated");
+  }
+
+  const address = await UserServices.setDefaultAddress(userId, addressId);
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Default address updated successfully",
+    data: address,
+  });
+});
+
 export const UserControllers = {
-  createUser,
-  updateUser,
   getAllUsers,
+  updateMe,
   getSingleUser,
   getMe,
-  updateUserData,
+  updateUser,
+  createAddress,
+  getMyAddresses,
+  updateMyAddress,
+  deleteMyAddress,
+  setDefaultAddress,
 };
