@@ -33,7 +33,7 @@ var loadEnvVariables = () => {
       throw new Error(`Missing require environment variable ${key}`);
     }
   });
-  return {
+  const envConfig = {
     PORT: process.env.PORT,
     DATABASE_URL: process.env.DATABASE_URL,
     NODE_ENV: process.env.NODE_ENV,
@@ -62,6 +62,16 @@ var loadEnvVariables = () => {
       SMTP_FROM: process.env.SMTP_FROM
     }
   };
+  if (process.env.SUPABASE_URL) {
+    envConfig.SUPABASE_URL = process.env.SUPABASE_URL;
+  }
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    envConfig.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  }
+  if (process.env.SUPABASE_BUCKET) {
+    envConfig.SUPABASE_BUCKET = process.env.SUPABASE_BUCKET;
+  }
+  return envConfig;
 };
 var envVars = loadEnvVariables();
 
@@ -1093,7 +1103,7 @@ var connectionString = `${process.env.DATABASE_URL}`;
 var adapter = new PrismaPg({ connectionString });
 var prisma = new PrismaClient({ adapter });
 
-// src/app/modules/user-pre/user.interface.ts
+// src/app/modules/user/user.interface.ts
 var Role = /* @__PURE__ */ ((Role4) => {
   Role4["ADMIN"] = "ADMIN";
   Role4["USER"] = "USER";
@@ -1941,17 +1951,14 @@ router.get(
 );
 var AuthRoutes = router;
 
-// src/app/modules/user-pre/user.route.ts
+// src/app/modules/user/user.route.ts
 import { Router as Router2 } from "express";
 
-// src/app/modules/user-pre/user.controller.ts
+// src/app/modules/user/user.controller.ts
 import httpStatus6 from "http-status-codes";
 
-// src/app/modules/user-pre/user.service.ts
+// src/app/modules/user/user.service.ts
 import httpStatus5 from "http-status-codes";
-
-// src/app/modules/user-pre/user.constant.ts
-var userSearchableFields = ["name", "email", "address", "phone"];
 
 // src/app/constants/index.ts
 var excludeField = ["searchTerm", "sort", "fields", "page", "limit"];
@@ -2058,33 +2065,85 @@ var QueryBuilder = class {
   }
 };
 
-// src/app/modules/user-pre/user.service.ts
+// src/app/modules/user/user.constant.ts
+var userSearchableFields = ["name", "email", "phone"];
+
+// src/app/modules/user/user.service.ts
+var userSelect = {
+  id: true,
+  name: true,
+  email: true,
+  emailVerified: true,
+  image: true,
+  role: true,
+  phone: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true
+};
+var userWithAddressesSelect = {
+  ...userSelect,
+  addresses: {
+    orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }]
+  }
+};
+var addressSelect = {
+  id: true,
+  userId: true,
+  label: true,
+  recipient: true,
+  phone: true,
+  street: true,
+  city: true,
+  state: true,
+  zipCode: true,
+  country: true,
+  isDefault: true,
+  createdAt: true,
+  updatedAt: true
+};
+var ensureUserExists = async (userId) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true }
+  });
+  if (!user) {
+    throw new AppError_default(httpStatus5.NOT_FOUND, "User not found");
+  }
+};
+var ensurePhoneUnique = async (phone, excludedUserId) => {
+  const existing = await prisma.user.findFirst({
+    where: {
+      phone,
+      ...excludedUserId && { id: { not: excludedUserId } }
+    },
+    select: {
+      id: true
+    }
+  });
+  if (existing) {
+    throw new AppError_default(httpStatus5.CONFLICT, "Phone number already in use");
+  }
+};
 var getAllUsers = async (query) => {
   const qb = new QueryBuilder(query).filter().search(userSearchableFields).sort().fields().paginate();
-  const users = await prisma.user.findMany(
-    qb.build()
-  );
-  const meta = await qb.getMeta(prisma.user);
+  const builtQuery = qb.build();
+  const [data, meta] = await Promise.all([
+    prisma.user.findMany({
+      ...builtQuery,
+      select: builtQuery.select ?? userSelect
+    }),
+    qb.getMeta(prisma.user)
+  ]);
   return {
     meta,
-    data: users
+    data
   };
 };
 var getMe = async (userId) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      emailVerified: true,
-      image: true,
-      role: true,
-      phone: true,
-      status: true,
-      createdAt: true,
-      updatedAt: true
-    }
+    select: userWithAddressesSelect
   });
   if (!user) {
     throw new AppError_default(httpStatus5.NOT_FOUND, "User not found");
@@ -2092,54 +2151,37 @@ var getMe = async (userId) => {
   return user;
 };
 var updateMe = async (userId, payload) => {
-  const existingUser = await prisma.user.findUnique({
-    where: { id: userId }
-  });
-  if (!existingUser) {
-    throw new AppError_default(httpStatus5.NOT_FOUND, "User not found");
+  await ensureUserExists(userId);
+  if (payload.phone) {
+    await ensurePhoneUnique(payload.phone, userId);
   }
   const updatedUser = await prisma.user.update({
     where: { id: userId },
     data: {
-      name: payload.name ?? existingUser.name,
-      phone: payload.phone ?? existingUser.phone,
-      image: payload.image ?? existingUser.image,
-      status: payload.status ?? existingUser.status
+      ...payload.name !== void 0 && { name: payload.name },
+      ...payload.phone !== void 0 && { phone: payload.phone },
+      ...payload.image !== void 0 && { image: payload.image },
+      ...payload.status !== void 0 && { status: payload.status }
     },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      emailVerified: true,
-      image: true,
-      role: true,
-      phone: true,
-      status: true,
-      createdAt: true,
-      updatedAt: true
-    }
+    select: userWithAddressesSelect
   });
   return updatedUser;
 };
 var getSingleUser = async (userId) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      emailVerified: true,
-      image: true,
-      role: true,
-      phone: true,
-      status: true,
-      createdAt: true,
-      updatedAt: true
-    }
+    select: userWithAddressesSelect
   });
+  if (!user) {
+    throw new AppError_default(httpStatus5.NOT_FOUND, "User not found");
+  }
   return user;
 };
 var updateUser = async (userId, payload) => {
+  await ensureUserExists(userId);
+  if (payload.phone) {
+    await ensurePhoneUnique(payload.phone, userId);
+  }
   const updatedUser = await prisma.user.update({
     where: { id: userId },
     data: {
@@ -2151,172 +2193,329 @@ var updateUser = async (userId, payload) => {
       ...payload.status !== void 0 && { status: payload.status },
       ...payload.phone !== void 0 && { phone: payload.phone }
     },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      emailVerified: true,
-      image: true,
-      role: true,
-      phone: true,
-      status: true,
-      createdAt: true,
-      updatedAt: true
-    }
+    select: userSelect
   });
   return updatedUser;
+};
+var createAddress = async (userId, payload) => {
+  await ensureUserExists(userId);
+  const shouldSetDefault = payload.isDefault === true || await prisma.address.count({ where: { userId } }) === 0;
+  const addressData = {
+    userId,
+    street: payload.street,
+    city: payload.city,
+    ...payload.label !== void 0 && { label: payload.label },
+    ...payload.recipient !== void 0 && { recipient: payload.recipient },
+    ...payload.phone !== void 0 && { phone: payload.phone },
+    ...payload.state !== void 0 && { state: payload.state },
+    ...payload.zipCode !== void 0 && { zipCode: payload.zipCode },
+    ...payload.country !== void 0 && { country: payload.country },
+    ...shouldSetDefault && { isDefault: true }
+  };
+  const address = await prisma.$transaction(async (tx) => {
+    if (shouldSetDefault) {
+      await tx.address.updateMany({
+        where: { userId },
+        data: { isDefault: false }
+      });
+    }
+    return tx.address.create({
+      data: addressData,
+      select: addressSelect
+    });
+  });
+  return address;
+};
+var getMyAddresses = async (userId) => {
+  await ensureUserExists(userId);
+  const addresses = await prisma.address.findMany({
+    where: { userId },
+    orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
+    select: addressSelect
+  });
+  return addresses;
+};
+var updateMyAddress = async (userId, addressId, payload) => {
+  const existingAddress = await prisma.address.findFirst({
+    where: {
+      id: addressId,
+      userId
+    },
+    select: {
+      id: true,
+      isDefault: true
+    }
+  });
+  if (!existingAddress) {
+    throw new AppError_default(httpStatus5.NOT_FOUND, "Address not found");
+  }
+  if (payload.isDefault === false && existingAddress.isDefault) {
+    throw new AppError_default(
+      httpStatus5.BAD_REQUEST,
+      "Cannot unset the current default address directly"
+    );
+  }
+  const addressData = {
+    ...payload.label !== void 0 && { label: payload.label },
+    ...payload.recipient !== void 0 && { recipient: payload.recipient },
+    ...payload.phone !== void 0 && { phone: payload.phone },
+    ...payload.street !== void 0 && { street: payload.street },
+    ...payload.city !== void 0 && { city: payload.city },
+    ...payload.state !== void 0 && { state: payload.state },
+    ...payload.zipCode !== void 0 && { zipCode: payload.zipCode },
+    ...payload.country !== void 0 && { country: payload.country },
+    ...payload.isDefault !== void 0 && { isDefault: payload.isDefault }
+  };
+  if (payload.isDefault) {
+    const updatedAddress2 = await prisma.$transaction(async (tx) => {
+      await tx.address.updateMany({
+        where: { userId },
+        data: { isDefault: false }
+      });
+      return tx.address.update({
+        where: { id: addressId },
+        data: {
+          ...addressData,
+          isDefault: true
+        },
+        select: addressSelect
+      });
+    });
+    return updatedAddress2;
+  }
+  const updatedAddress = await prisma.address.update({
+    where: { id: addressId },
+    data: addressData,
+    select: addressSelect
+  });
+  return updatedAddress;
+};
+var deleteMyAddress = async (userId, addressId) => {
+  const address = await prisma.address.findFirst({
+    where: {
+      id: addressId,
+      userId
+    },
+    select: {
+      id: true,
+      isDefault: true
+    }
+  });
+  if (!address) {
+    throw new AppError_default(httpStatus5.NOT_FOUND, "Address not found");
+  }
+  await prisma.$transaction(async (tx) => {
+    await tx.address.delete({
+      where: { id: addressId }
+    });
+    if (address.isDefault) {
+      const fallbackAddress = await tx.address.findFirst({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        select: { id: true }
+      });
+      if (fallbackAddress) {
+        await tx.address.update({
+          where: { id: fallbackAddress.id },
+          data: { isDefault: true }
+        });
+      }
+    }
+  });
+};
+var setDefaultAddress = async (userId, addressId) => {
+  const address = await prisma.address.findFirst({
+    where: {
+      id: addressId,
+      userId
+    },
+    select: {
+      id: true
+    }
+  });
+  if (!address) {
+    throw new AppError_default(httpStatus5.NOT_FOUND, "Address not found");
+  }
+  const updatedAddress = await prisma.$transaction(async (tx) => {
+    await tx.address.updateMany({
+      where: { userId },
+      data: { isDefault: false }
+    });
+    return tx.address.update({
+      where: { id: addressId },
+      data: { isDefault: true },
+      select: addressSelect
+    });
+  });
+  return updatedAddress;
 };
 var UserServices = {
   getAllUsers,
   getSingleUser,
   updateUser,
   getMe,
-  updateMe
+  updateMe,
+  createAddress,
+  getMyAddresses,
+  updateMyAddress,
+  deleteMyAddress,
+  setDefaultAddress
 };
 
-// src/app/modules/user-pre/user.controller.ts
-var getAllUsers2 = catchAsync(
-  async (req, res, next) => {
-    const query = req.query;
-    try {
-      const users = await UserServices.getAllUsers(
-        query
-      );
-      sendResponse(res, {
-        success: true,
-        statusCode: httpStatus6.OK,
-        message: "All Users Retrieved Successfully",
-        data: users.data,
-        meta: users.meta
-      });
-    } catch (error) {
-      throw new AppError_default(
-        httpStatus6.INTERNAL_SERVER_ERROR,
-        "Something went wrong while retrieving users"
-      );
-    }
+// src/app/modules/user/user.controller.ts
+var getParamAsString = (value, key) => {
+  if (!value || Array.isArray(value)) {
+    throw new AppError_default(httpStatus6.BAD_REQUEST, `${key} is required`);
   }
-);
-var getMe2 = catchAsync(
-  async (req, res, next) => {
-    const decodedHeader = req.user;
-    if (!decodedHeader) {
-      throw new AppError_default(httpStatus6.UNAUTHORIZED, "User not authenticated");
-    }
-    try {
-      const user = await UserServices.getMe(
-        decodedHeader.id
-      );
-      sendResponse(res, {
-        success: true,
-        statusCode: httpStatus6.OK,
-        message: "Your profile Retrieved Successfully",
-        data: user
-      });
-    } catch (error) {
-      throw new AppError_default(
-        httpStatus6.INTERNAL_SERVER_ERROR,
-        "Something went wrong while retrieving your profile"
-      );
-    }
+  return value;
+};
+var getAllUsers2 = catchAsync(async (req, res) => {
+  const query = req.query;
+  const users = await UserServices.getAllUsers(query);
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus6.OK,
+    message: "All users retrieved successfully",
+    data: users.data,
+    meta: users.meta
+  });
+});
+var getMe2 = catchAsync(async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) {
+    throw new AppError_default(httpStatus6.UNAUTHORIZED, "User not authenticated");
   }
-);
-var updateMe2 = catchAsync(
-  async (req, res, next) => {
-    const { name, phone, image, status: bodyStatus } = req.body;
-    const status = bodyStatus == "DELETED" ? bodyStatus : null;
-    const decodedHeader = req.user;
-    if (!decodedHeader) {
-      throw new AppError_default(httpStatus6.UNAUTHORIZED, "User not authenticated");
-    }
-    try {
-      const updatedUser = await UserServices.updateMe(
-        decodedHeader.id,
-        { name, phone, image, status }
-      );
-      sendResponse(res, {
-        success: true,
-        statusCode: httpStatus6.OK,
-        message: "Your profile Updated Successfully",
-        data: updatedUser
-      });
-    } catch (error) {
-      throw new AppError_default(
-        httpStatus6.INTERNAL_SERVER_ERROR,
-        "Something went wrong while updating your profile"
-      );
-    }
+  const user = await UserServices.getMe(userId);
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus6.OK,
+    message: "User profile retrieved successfully",
+    data: user
+  });
+});
+var updateMe2 = catchAsync(async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) {
+    throw new AppError_default(httpStatus6.UNAUTHORIZED, "User not authenticated");
   }
-);
-var getSingleUser2 = catchAsync(
-  async (req, res, next) => {
-    const id = req.params.id;
-    if (!id) {
-      throw new AppError_default(
-        httpStatus6.BAD_REQUEST,
-        "User ID is required from params"
-      );
-    }
-    try {
-      const user = await UserServices.getSingleUser(id);
-      sendResponse(res, {
-        success: true,
-        statusCode: httpStatus6.OK,
-        message: "User Retrieved Successfully",
-        data: user
-      });
-    } catch (error) {
-      throw new AppError_default(
-        httpStatus6.INTERNAL_SERVER_ERROR,
-        "Something went wrong while retrieving the user"
-      );
-    }
+  const payload = req.body;
+  const updatedUser = await UserServices.updateMe(userId, payload);
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus6.OK,
+    message: "User profile updated successfully",
+    data: updatedUser
+  });
+});
+var getSingleUser2 = catchAsync(async (req, res) => {
+  const userId = getParamAsString(req.params.id, "User id");
+  const user = await UserServices.getSingleUser(userId);
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus6.OK,
+    message: "User retrieved successfully",
+    data: user
+  });
+});
+var updateUser2 = catchAsync(async (req, res) => {
+  const userId = getParamAsString(req.params.id, "User id");
+  const payload = req.body;
+  const user = await UserServices.updateUser(userId, payload);
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus6.OK,
+    message: "User updated successfully",
+    data: user
+  });
+});
+var createAddress2 = catchAsync(async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) {
+    throw new AppError_default(httpStatus6.UNAUTHORIZED, "User not authenticated");
   }
-);
-var updateUser2 = catchAsync(
-  async (req, res, next) => {
-    const userId = req.params.id;
-    const { name, role, emailVerified, status, phone } = req.body;
-    if (!userId) {
-      throw new AppError_default(
-        httpStatus6.BAD_REQUEST,
-        "User ID is required from params"
-      );
-    }
-    try {
-      const user = await UserServices.updateUser(userId, {
-        name,
-        role,
-        emailVerified,
-        status,
-        phone
-      });
-      if (!user) {
-        return next(new AppError_default(httpStatus6.NOT_FOUND, "User not found"));
-      }
-      sendResponse(res, {
-        success: true,
-        statusCode: httpStatus6.OK,
-        message: "User Data Updated Successfully",
-        data: user
-      });
-    } catch (error) {
-      throw new AppError_default(
-        httpStatus6.INTERNAL_SERVER_ERROR,
-        "Something went wrong while updating the user data"
-      );
-    }
+  const payload = req.body;
+  const address = await UserServices.createAddress(userId, payload);
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus6.CREATED,
+    message: "Address created successfully",
+    data: address
+  });
+});
+var getMyAddresses2 = catchAsync(async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) {
+    throw new AppError_default(httpStatus6.UNAUTHORIZED, "User not authenticated");
   }
-);
+  const addresses = await UserServices.getMyAddresses(userId);
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus6.OK,
+    message: "Addresses retrieved successfully",
+    data: addresses
+  });
+});
+var updateMyAddress2 = catchAsync(async (req, res) => {
+  const userId = req.user?.id;
+  const addressId = getParamAsString(req.params.addressId, "Address id");
+  if (!userId) {
+    throw new AppError_default(httpStatus6.UNAUTHORIZED, "User not authenticated");
+  }
+  const payload = req.body;
+  const updatedAddress = await UserServices.updateMyAddress(
+    userId,
+    addressId,
+    payload
+  );
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus6.OK,
+    message: "Address updated successfully",
+    data: updatedAddress
+  });
+});
+var deleteMyAddress2 = catchAsync(async (req, res) => {
+  const userId = req.user?.id;
+  const addressId = getParamAsString(req.params.addressId, "Address id");
+  if (!userId) {
+    throw new AppError_default(httpStatus6.UNAUTHORIZED, "User not authenticated");
+  }
+  await UserServices.deleteMyAddress(userId, addressId);
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus6.OK,
+    message: "Address deleted successfully",
+    data: null
+  });
+});
+var setDefaultAddress2 = catchAsync(async (req, res) => {
+  const userId = req.user?.id;
+  const addressId = getParamAsString(req.params.addressId, "Address id");
+  if (!userId) {
+    throw new AppError_default(httpStatus6.UNAUTHORIZED, "User not authenticated");
+  }
+  const address = await UserServices.setDefaultAddress(userId, addressId);
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus6.OK,
+    message: "Default address updated successfully",
+    data: address
+  });
+});
 var UserControllers = {
   getAllUsers: getAllUsers2,
   updateMe: updateMe2,
   getSingleUser: getSingleUser2,
   getMe: getMe2,
-  updateUser: updateUser2
+  updateUser: updateUser2,
+  createAddress: createAddress2,
+  getMyAddresses: getMyAddresses2,
+  updateMyAddress: updateMyAddress2,
+  deleteMyAddress: deleteMyAddress2,
+  setDefaultAddress: setDefaultAddress2
 };
 
-// src/app/modules/user-pre/user.validation.ts
+// src/app/modules/user/user.validation.ts
 import { z as z2 } from "zod";
 var updateMeZodSchema = z2.object({
   name: z2.string().min(2, { message: "Name must be at least 2 characters long" }).max(50, { message: "Name cannot exceed 50 characters" }).optional(),
@@ -2335,17 +2534,44 @@ var adminUpdateUserZodSchema = z2.object({
     message: "Phone number must be valid for Bangladesh. Format: +8801XXXXXXXXX or 01XXXXXXXXX"
   }).optional()
 });
+var bdPhoneSchema = z2.string().regex(/^(?:\+8801\d{9}|01\d{9})$/, {
+  message: "Phone number must be valid for Bangladesh. Format: +8801XXXXXXXXX or 01XXXXXXXXX"
+});
+var createAddressZodSchema = z2.object({
+  label: z2.string().min(2, { message: "Label must be at least 2 characters long" }).max(30, { message: "Label cannot exceed 30 characters" }).optional(),
+  recipient: z2.string().min(2, { message: "Recipient must be at least 2 characters long" }).max(100, { message: "Recipient cannot exceed 100 characters" }).optional(),
+  phone: bdPhoneSchema.optional(),
+  street: z2.string().min(5, { message: "Street must be at least 5 characters long" }).max(255, { message: "Street cannot exceed 255 characters" }),
+  city: z2.string().min(2, { message: "City must be at least 2 characters long" }).max(100, { message: "City cannot exceed 100 characters" }),
+  state: z2.string().max(100, { message: "State cannot exceed 100 characters" }).optional(),
+  zipCode: z2.string().max(20, { message: "Zip code cannot exceed 20 characters" }).optional(),
+  country: z2.string().max(100, { message: "Country cannot exceed 100 characters" }).optional(),
+  isDefault: z2.boolean().optional()
+});
+var updateAddressZodSchema = z2.object({
+  label: z2.string().min(2, { message: "Label must be at least 2 characters long" }).max(30, { message: "Label cannot exceed 30 characters" }).optional(),
+  recipient: z2.string().min(2, { message: "Recipient must be at least 2 characters long" }).max(100, { message: "Recipient cannot exceed 100 characters" }).optional(),
+  phone: bdPhoneSchema.optional(),
+  street: z2.string().min(5, { message: "Street must be at least 5 characters long" }).max(255, { message: "Street cannot exceed 255 characters" }).optional(),
+  city: z2.string().min(2, { message: "City must be at least 2 characters long" }).max(100, { message: "City cannot exceed 100 characters" }).optional(),
+  state: z2.string().max(100, { message: "State cannot exceed 100 characters" }).optional(),
+  zipCode: z2.string().max(20, { message: "Zip code cannot exceed 20 characters" }).optional(),
+  country: z2.string().max(100, { message: "Country cannot exceed 100 characters" }).optional(),
+  isDefault: z2.boolean().optional()
+}).refine((data) => Object.keys(data).length > 0, {
+  message: "At least one field is required for update"
+});
 
-// src/app/modules/user-pre/user.route.ts
+// src/app/modules/user/user.route.ts
 var router2 = Router2();
 router2.get("/", checkAuth("ADMIN" /* ADMIN */), UserControllers.getAllUsers);
 router2.get(
-  "/:id/profile",
+  "/profile/:id",
   checkAuth("ADMIN" /* ADMIN */),
   UserControllers.getSingleUser
 );
 router2.put(
-  "/:id/update-profile",
+  "/update-profile/:id",
   checkAuth("ADMIN" /* ADMIN */),
   validateRequest(adminUpdateUserZodSchema),
   UserControllers.updateUser
@@ -2360,6 +2586,33 @@ router2.patch(
   checkAuth(...Object.values(Role)),
   validateRequest(updateMeZodSchema),
   UserControllers.updateMe
+);
+router2.post(
+  "/addresses",
+  checkAuth(...Object.values(Role)),
+  validateRequest(createAddressZodSchema),
+  UserControllers.createAddress
+);
+router2.get(
+  "/addresses",
+  checkAuth(...Object.values(Role)),
+  UserControllers.getMyAddresses
+);
+router2.patch(
+  "/addresses/:addressId",
+  checkAuth(...Object.values(Role)),
+  validateRequest(updateAddressZodSchema),
+  UserControllers.updateMyAddress
+);
+router2.patch(
+  "/addresses/set-default/:addressId",
+  checkAuth(...Object.values(Role)),
+  UserControllers.setDefaultAddress
+);
+router2.delete(
+  "/addresses/:addressId",
+  checkAuth(...Object.values(Role)),
+  UserControllers.deleteMyAddress
 );
 var UserRoutes = router2;
 
@@ -2619,12 +2872,29 @@ var sortCollectionTree = (nodes) => {
   });
   nodes.forEach((node) => sortCollectionTree(node.children));
 };
-var getPublicCollections = async () => {
+var getPublicCollections = async (query) => {
+  const page = Math.max(Number(query.page) || 1, 1);
+  const limit = Math.min(Math.max(Number(query.limit) || 10, 1), 100);
+  const skip = (page - 1) * limit;
+  const qb = new QueryBuilder({
+    ...query,
+    sort: query.sort ?? "sortOrder,name"
+  }).filter().search(categorySearchableFields).sort();
+  const builtQuery = qb.build();
+  const where = {
+    ...builtQuery.where ?? {},
+    isActive: true
+  };
+  if (query.parentId !== void 0) {
+    const parentId = query.parentId.trim().toLowerCase();
+    where.parentId = parentId === "" || parentId === "null" || parentId === "root" ? null : query.parentId;
+  }
   const categories = await prisma.category.findMany({
-    where: {
-      isActive: true
-    },
-    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    where,
+    orderBy: builtQuery.orderBy ?? [
+      { sortOrder: "asc" },
+      { name: "asc" }
+    ],
     select: collectionCategorySelect
   });
   const nodeMap = /* @__PURE__ */ new Map();
@@ -2656,7 +2926,17 @@ var getPublicCollections = async () => {
     parentNode.children.push(node);
   });
   sortCollectionTree(roots);
-  return roots;
+  const total = roots.length;
+  const data = roots.slice(skip, skip + limit);
+  return {
+    meta: {
+      page,
+      limit,
+      total,
+      totalPage: Math.ceil(total / limit)
+    },
+    data
+  };
 };
 var getCategoryById = async (categoryId) => {
   const category = await prisma.category.findUnique({
@@ -2739,7 +3019,7 @@ var CategoryService = {
 };
 
 // src/app/modules/category/category.controller.ts
-var getParamAsString = (value, key) => {
+var getParamAsString2 = (value, key) => {
   if (!value || Array.isArray(value)) {
     throw new AppError_default(httpStatus8.BAD_REQUEST, `${key} is required`);
   }
@@ -2766,17 +3046,19 @@ var getCategories2 = catchAsync(async (req, res) => {
     meta: result.meta
   });
 });
-var getPublicCollections2 = catchAsync(async (_, res) => {
-  const result = await CategoryService.getPublicCollections();
+var getPublicCollections2 = catchAsync(async (req, res) => {
+  const query = req.query;
+  const result = await CategoryService.getPublicCollections(query);
   sendResponse(res, {
     success: true,
     statusCode: httpStatus8.OK,
     message: "Collections retrieved successfully",
-    data: result
+    data: result.data,
+    meta: result.meta
   });
 });
 var getCategoryById2 = catchAsync(async (req, res) => {
-  const categoryId = getParamAsString(req.params.id, "Category id");
+  const categoryId = getParamAsString2(req.params.id, "Category id");
   const result = await CategoryService.getCategoryById(categoryId);
   sendResponse(res, {
     success: true,
@@ -2786,7 +3068,7 @@ var getCategoryById2 = catchAsync(async (req, res) => {
   });
 });
 var updateCategory2 = catchAsync(async (req, res) => {
-  const categoryId = getParamAsString(req.params.id, "Category id");
+  const categoryId = getParamAsString2(req.params.id, "Category id");
   const payload = req.body;
   const result = await CategoryService.updateCategory(categoryId, payload);
   sendResponse(res, {
@@ -2877,13 +3159,17 @@ router3.patch(
 );
 router3.get(
   "/:id",
-  checkAuth(...Object.values(Role)),
   CategoryControllers.getCategoryById
 );
 var CategoryRoutes = router3;
 
 // src/app/modules/image/image.route.ts
 import { Router as Router4 } from "express";
+
+// src/app/middlewares/uploadImages.ts
+import path4 from "path";
+import { v4 as uuidv42 } from "uuid";
+import httpStatus11 from "http-status-codes";
 
 // src/app/lib/multer.ts
 import { CloudinaryStorage } from "multer-storage-cloudinary";
@@ -2901,19 +3187,40 @@ var cloudinary_default = cloudinary;
 import multer from "multer";
 import path3 from "path";
 import { v4 as uuidv4 } from "uuid";
+import fs from "fs";
+import httpStatus9 from "http-status-codes";
+var MAX_MEDIA_SIZE_BYTES = 2 * 1024 * 1024;
+var mediaLimits = {
+  fileSize: MAX_MEDIA_SIZE_BYTES
+};
 var CloudinaryStorageInstance = new CloudinaryStorage({
   cloudinary: cloudinary_default,
   params: async () => ({
-    folder: "products",
-    allowed_formats: ["jpg", "jpeg", "png", "webp"]
+    folder: "media",
+    resource_type: "auto",
+    allowed_formats: [
+      "jpg",
+      "jpeg",
+      "png",
+      "webp",
+      "gif",
+      "mp4",
+      "mov",
+      "avi",
+      "webm",
+      "mkv"
+    ]
   })
 });
 var uploadWithCloudinary = multer({
-  storage: CloudinaryStorageInstance
+  storage: CloudinaryStorageInstance,
+  limits: mediaLimits
 });
 var storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path3.join(process.cwd(), "uploads/images"));
+    const destinationPath = path3.join(process.cwd(), "uploads/media");
+    fs.mkdirSync(destinationPath, { recursive: true });
+    cb(null, destinationPath);
   },
   filename: (req, file, cb) => {
     const ext = path3.extname(file.originalname);
@@ -2922,88 +3229,259 @@ var storage = multer.diskStorage({
   }
 });
 var fileFilter = (req, file, cb) => {
-  if (file.mimetype.startsWith("image/")) {
+  if (file.mimetype.startsWith("image/") || file.mimetype.startsWith("video/")) {
     cb(null, true);
   } else {
-    cb(new Error("Only image files are allowed!"));
+    cb(new AppError_default(httpStatus9.BAD_REQUEST, "Only image/video files are allowed"));
   }
 };
 var uploadCategoryImage = multer({
   storage,
   fileFilter,
-  limits: {
-    fileSize: 2 * 1024 * 1024
-    // 2MB
-  }
+  limits: mediaLimits
 });
 var uploadProductImage = multer({
   storage,
   fileFilter,
-  limits: {
-    fileSize: 2 * 1024 * 1024
-    // 2MB
-  }
+  limits: mediaLimits
+});
+var uploadForSupabase = multer({
+  storage: multer.memoryStorage(),
+  fileFilter,
+  limits: mediaLimits
 });
 
+// src/app/lib/supabase.ts
+import { createClient } from "@supabase/supabase-js";
+import httpStatus10 from "http-status-codes";
+var supabaseClient = null;
+var getSupabaseClient = () => {
+  if (!envVars.SUPABASE_URL || !envVars.SUPABASE_SERVICE_ROLE_KEY) {
+    throw new AppError_default(
+      httpStatus10.INTERNAL_SERVER_ERROR,
+      "Supabase storage is not configured. Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY."
+    );
+  }
+  if (!supabaseClient) {
+    supabaseClient = createClient(
+      envVars.SUPABASE_URL,
+      envVars.SUPABASE_SERVICE_ROLE_KEY
+    );
+  }
+  return supabaseClient;
+};
+var getSupabaseBucket = () => {
+  if (!envVars.SUPABASE_BUCKET) {
+    throw new AppError_default(
+      httpStatus10.INTERNAL_SERVER_ERROR,
+      "Supabase bucket is not configured. Please set SUPABASE_BUCKET."
+    );
+  }
+  return envVars.SUPABASE_BUCKET;
+};
+
 // src/app/middlewares/uploadImages.ts
-import httpStatus9 from "http-status-codes";
-var uploadImages = async (req, res, next) => {
-  const storageType = req.query.storageType;
-  req.uploadedImages = [];
-  if (!storageType) return next();
-  if (storageType === "custom") {
-    if (!Array.isArray(req.body.images)) {
-      throw new AppError_default(httpStatus9.BAD_REQUEST, "Images array required");
+var storageTypes = ["link", "local", "cloudinary", "supabase"];
+var storageTypeAliases = {
+  cloudnery: "cloudinary",
+  cloudenery: "cloudinary",
+  cloudeniary: "cloudinary",
+  cloudinery: "cloudinary",
+  subabase: "supabase",
+  subaabase: "supabase"
+};
+var getStorageType = (req) => {
+  const storageType = req.query.storageType?.trim().toLowerCase();
+  const normalizedStorageType = storageType ? storageTypeAliases[storageType] ?? storageType : void 0;
+  if (!normalizedStorageType || !storageTypes.includes(normalizedStorageType)) {
+    throw new AppError_default(
+      httpStatus11.BAD_REQUEST,
+      "Invalid storageType. Use one of: link, local, cloudinary, supabase"
+    );
+  }
+  return normalizedStorageType;
+};
+var extractFiles = (req) => {
+  if (!req.files) return [];
+  if (Array.isArray(req.files)) {
+    return req.files;
+  }
+  const filesByField = req.files;
+  return Object.values(filesByField).flat();
+};
+var uploadWithMulter = (req, res, storageType) => {
+  const uploader = storageType === "cloudinary" ? uploadWithCloudinary : storageType === "supabase" ? uploadForSupabase : uploadProductImage;
+  return new Promise((resolve, reject) => {
+    uploader.fields([
+      { name: "files", maxCount: 20 },
+      { name: "images", maxCount: 20 },
+      { name: "videos", maxCount: 20 }
+    ])(req, res, (err) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve(extractFiles(req));
+    });
+  });
+};
+var buildMediaType = (mimeType) => {
+  if (mimeType.startsWith("video/")) {
+    return "video";
+  }
+  return "image";
+};
+var ensureLinkPayload = (req) => {
+  const mediaUrlsRaw = req.body.mediaUrls;
+  const mediaUrlRaw = req.body.mediaUrl;
+  let mediaUrls = [];
+  if (Array.isArray(mediaUrlsRaw)) {
+    mediaUrls = mediaUrlsRaw;
+  } else if (typeof mediaUrlsRaw === "string" && mediaUrlsRaw.trim()) {
+    const trimmed = mediaUrlsRaw.trim();
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          mediaUrls = parsed;
+        }
+      } catch {
+        mediaUrls = [trimmed];
+      }
+    } else {
+      mediaUrls = [trimmed];
     }
-    req.body.images.forEach((img) => {
-      if (!img.src || !img.publicId) {
+  } else if (mediaUrlRaw) {
+    mediaUrls = [mediaUrlRaw];
+  }
+  if (!mediaUrls.length) {
+    throw new AppError_default(
+      httpStatus11.BAD_REQUEST,
+      "For storageType=link, provide mediaUrl or mediaUrls[]"
+    );
+  }
+  mediaUrls.forEach((url) => {
+    if (typeof url !== "string" || !/^https?:\/\//i.test(url)) {
+      throw new AppError_default(
+        httpStatus11.BAD_REQUEST,
+        "Each mediaUrl must be a valid http/https URL"
+      );
+    }
+  });
+  return mediaUrls;
+};
+var uploadImages = async (req, res, next) => {
+  try {
+    const storageType = getStorageType(req);
+    req.uploadedImages = [];
+    if (storageType === "link") {
+      const mediaUrls = ensureLinkPayload(req);
+      mediaUrls.forEach((url) => {
+        req.uploadedImages.push({
+          storageType: "link",
+          src: url,
+          publicId: `link:${uuidv42()}`
+        });
+      });
+      next();
+      return;
+    }
+    const files = await uploadWithMulter(req, res, storageType);
+    if (!files.length) {
+      throw new AppError_default(
+        httpStatus11.BAD_REQUEST,
+        "No files received. Send files in 'files', 'images', or 'videos' field"
+      );
+    }
+    if (storageType === "local") {
+      files.forEach((file) => {
+        req.uploadedImages.push({
+          storageType: "local",
+          src: `/api/uploads/media/${file.filename}`,
+          publicId: `local:${file.filename}`
+        });
+      });
+      next();
+      return;
+    }
+    if (storageType === "cloudinary") {
+      files.forEach((file) => {
+        req.uploadedImages.push({
+          storageType: "cloudinary",
+          src: file.path,
+          publicId: `cloudinary:${file.filename}`
+        });
+      });
+      next();
+      return;
+    }
+    const supabase = getSupabaseClient();
+    const bucket = getSupabaseBucket();
+    for (const file of files) {
+      const ext = path4.extname(file.originalname) || "";
+      const mediaType = buildMediaType(file.mimetype);
+      const objectPath = `${mediaType}s/${Date.now()}-${uuidv42()}${ext}`;
+      const { error } = await supabase.storage.from(bucket).upload(objectPath, file.buffer, {
+        upsert: false,
+        contentType: file.mimetype
+      });
+      if (error) {
         throw new AppError_default(
-          httpStatus9.BAD_REQUEST,
-          "Custom image src and publicId required"
+          httpStatus11.BAD_REQUEST,
+          `Supabase upload failed: ${error.message}`
         );
       }
+      const { data } = supabase.storage.from(bucket).getPublicUrl(objectPath);
       req.uploadedImages.push({
-        storageType: "custom",
-        src: img.src,
-        publicId: img.publicId
-      });
-    });
-    return next();
-  }
-  const uploader = storageType === "cloudinary" ? uploadWithCloudinary : uploadProductImage;
-  uploader.array("images", 10)(req, res, (err) => {
-    if (err) return next(err);
-    if (req.files && Array.isArray(req.files)) {
-      req.files.forEach((file) => {
-        req.uploadedImages.push({
-          storageType,
-          src: file.path,
-          publicId: file.filename
-        });
+        storageType: "supabase",
+        src: data.publicUrl,
+        publicId: `supabase:${objectPath}`
       });
     }
     next();
-  });
+  } catch (error) {
+    next(error);
+  }
 };
 
 // src/app/modules/image/image.controller.ts
-import httpStatus11 from "http-status-codes";
+import httpStatus13 from "http-status-codes";
 
 // src/app/modules/image/image.service.ts
-import httpStatus10 from "http-status-codes";
+import httpStatus12 from "http-status-codes";
 
 // src/app/utils/cleanupImage.ts
-import fs from "fs/promises";
+import fs2 from "fs/promises";
+import path5 from "path";
 var cleanupImages = async (images) => {
   if (!images) return;
   if (!images?.length) return;
   for (const image of images) {
     try {
-      if (image.storageType === "local" && image.src) {
-        await fs.unlink(image.src);
+      if (image.storageType === "local") {
+        let localPath = image.src;
+        if (image.publicId?.startsWith("local:")) {
+          const filename = image.publicId.replace("local:", "");
+          localPath = path5.join(process.cwd(), "uploads/media", filename);
+        } else if (image.src?.startsWith("/api/uploads/media/")) {
+          const filename = image.src.replace("/api/uploads/media/", "");
+          localPath = path5.join(process.cwd(), "uploads/media", filename);
+        }
+        if (localPath) {
+          await fs2.unlink(localPath);
+        }
       }
       if (image.storageType === "cloudinary" && image.publicId) {
-        await cloudinary_default.uploader.destroy(image.publicId);
+        const cloudinaryPublicId = image.publicId.startsWith("cloudinary:") ? image.publicId.replace("cloudinary:", "") : image.publicId;
+        await cloudinary_default.uploader.destroy(cloudinaryPublicId, {
+          resource_type: "auto"
+        });
+      }
+      if (image.storageType === "supabase" && image.publicId) {
+        const supabase = getSupabaseClient();
+        const bucket = getSupabaseBucket();
+        const objectPath = image.publicId.startsWith("supabase:") ? image.publicId.replace("supabase:", "") : image.publicId;
+        await supabase.storage.from(bucket).remove([objectPath]);
       }
     } catch (err) {
       console.error("Failed to cleanup image:", err);
@@ -3012,58 +3490,146 @@ var cleanupImages = async (images) => {
 };
 
 // src/app/modules/image/image.service.ts
-var createImages = async (payload) => {
-  const { productId, variantOptionId, categoryId, images } = payload;
-  if (!images?.length) {
-    throw new AppError_default(httpStatus10.BAD_REQUEST, "Images are required");
+var mediaSelect = {
+  id: true,
+  src: true,
+  publicId: true,
+  altText: true,
+  isPrimary: true,
+  productId: true,
+  variantOptionId: true,
+  categoryId: true,
+  createdAt: true,
+  updatedAt: true
+};
+var videoExtensions = /* @__PURE__ */ new Set([
+  ".mp4",
+  ".mov",
+  ".avi",
+  ".webm",
+  ".mkv",
+  ".m4v"
+]);
+var getMediaType = (src) => {
+  const normalized = src.split("?")[0]?.split("#")[0] ?? src;
+  for (const ext of videoExtensions) {
+    if (normalized.toLowerCase().endsWith(ext)) {
+      return "video";
+    }
   }
+  return "image";
+};
+var resolveStorageType = (image) => {
+  const publicId = image.publicId ?? "";
+  if (publicId.startsWith("link:")) {
+    return "link";
+  }
+  if (publicId.startsWith("local:")) {
+    return "local";
+  }
+  if (publicId.startsWith("cloudinary:")) {
+    return "cloudinary";
+  }
+  if (publicId.startsWith("supabase:")) {
+    return "supabase";
+  }
+  if (image.src.startsWith("/api/uploads/")) {
+    return "local";
+  }
+  if (image.src.includes("res.cloudinary.com")) {
+    return "cloudinary";
+  }
+  if (image.src.includes("supabase.co/storage/v1/object/public")) {
+    return "supabase";
+  }
+  return "link";
+};
+var ensureRelationsExist = async (payload) => {
+  const [product, variantOption, category] = await Promise.all([
+    payload.productId ? prisma.product.findUnique({
+      where: { id: payload.productId },
+      select: { id: true }
+    }) : Promise.resolve(null),
+    payload.variantOptionId ? prisma.variantOption.findUnique({
+      where: { id: payload.variantOptionId },
+      select: { id: true }
+    }) : Promise.resolve(null),
+    payload.categoryId ? prisma.category.findUnique({
+      where: { id: payload.categoryId },
+      select: { id: true }
+    }) : Promise.resolve(null)
+  ]);
+  if (payload.productId && !product) {
+    throw new AppError_default(httpStatus12.NOT_FOUND, "Product not found");
+  }
+  if (payload.variantOptionId && !variantOption) {
+    throw new AppError_default(httpStatus12.NOT_FOUND, "Variant option not found");
+  }
+  if (payload.categoryId && !category) {
+    throw new AppError_default(httpStatus12.NOT_FOUND, "Category not found");
+  }
+};
+var createImages = async (payload) => {
+  if (!payload.images.length) {
+    throw new AppError_default(httpStatus12.BAD_REQUEST, "Media files are required");
+  }
+  await ensureRelationsExist(payload);
   const createdImages = await prisma.productImage.createManyAndReturn({
-    data: images.map((img) => ({
-      src: img.src,
-      publicId: img.publicId,
-      altText: img.altText ?? null,
-      isPrimary: img.isPrimary ?? false,
-      productId: productId ?? null,
-      variantOptionId: variantOptionId ?? null,
-      categoryId: categoryId ?? null
+    data: payload.images.map((media) => ({
+      src: media.src,
+      publicId: media.publicId ?? null,
+      altText: media.altText ?? null,
+      isPrimary: media.isPrimary ?? false,
+      productId: payload.productId ?? null,
+      variantOptionId: payload.variantOptionId ?? null,
+      categoryId: payload.categoryId ?? null
     })),
+    select: mediaSelect
+  });
+  return createdImages.map((media) => ({
+    ...media,
+    mediaType: getMediaType(media.src)
+  }));
+};
+var getAllImages = async (query) => {
+  const qb = new QueryBuilder({ ...query }).filter().search(["altText", "src", "publicId"]).sort().fields().paginate();
+  const builtQuery = qb.build();
+  const [rows, meta] = await Promise.all([
+    prisma.productImage.findMany({
+      ...builtQuery,
+      select: builtQuery.select ?? mediaSelect
+    }),
+    qb.getMeta(prisma.productImage)
+  ]);
+  return {
+    meta,
+    data: rows.map((media) => ({
+      ...media,
+      mediaType: getMediaType(media.src)
+    }))
+  };
+};
+var deleteImage = async (imageId) => {
+  const image = await prisma.productImage.findUnique({
+    where: { id: imageId },
     select: {
       id: true,
       src: true,
-      publicId: true,
-      altText: true,
-      isPrimary: true,
-      productId: true,
-      variantOptionId: true,
-      categoryId: true,
-      createdAt: true
+      publicId: true
     }
   });
-  return createdImages;
-};
-var getAllImages = async (query) => {
-  const qb = new QueryBuilder({ ...query, limit: "12" }).filter().search(["altText", "src", "publicId"]).sort().fields().paginate();
-  const prismaQuery = qb.build();
-  const data = await prisma.productImage.findMany(prismaQuery);
-  const meta = await qb.getMeta(prisma.productImage);
-  return {
-    meta,
-    data
-  };
-};
-var deleteImage = async (imageId, storageType, payload) => {
-  console.log(payload);
+  if (!image) {
+    throw new AppError_default(httpStatus12.NOT_FOUND, "Media not found");
+  }
   await cleanupImages([
     {
-      storageType,
-      ...payload?.publicId !== void 0 && { publicId: payload.publicId },
-      ...payload?.src !== void 0 && { src: payload.src }
+      storageType: resolveStorageType(image),
+      src: image.src,
+      ...image.publicId !== null && { publicId: image.publicId }
     }
   ]);
   await prisma.productImage.delete({
-    where: {
-      id: imageId
-    }
+    where: { id: image.id }
   });
 };
 var ImageService = {
@@ -3073,52 +3639,56 @@ var ImageService = {
 };
 
 // src/app/modules/image/image.controller.ts
-var createImages2 = catchAsync(
-  async (req, res, next) => {
-    const { productId, variantOptionId, categoryId, altText, isPrimary } = req.body || {};
-    const { storageType } = req.query;
-    const images = req.uploadedImages?.map((img) => ({
-      src: img.src,
-      publicId: img.publicId,
-      altText,
-      isPrimary
-    })) ?? [];
-    const result = await ImageService.createImages({
-      productId,
-      variantOptionId,
-      categoryId,
-      images
-    });
-    sendResponse(res, {
-      statusCode: httpStatus11.CREATED,
-      success: true,
-      message: "Images created successfully",
-      data: result
-    });
+var getParamAsString3 = (value, key) => {
+  if (!value || Array.isArray(value)) {
+    throw new AppError_default(httpStatus13.BAD_REQUEST, `${key} is required`);
   }
-);
+  return value;
+};
+var createImages2 = catchAsync(async (req, res) => {
+  const payload = req.body;
+  const uploadedImages = req.uploadedImages ?? [];
+  if (!uploadedImages.length) {
+    throw new AppError_default(httpStatus13.BAD_REQUEST, "No media received");
+  }
+  const createPayload = {
+    ...payload.productId !== void 0 && { productId: payload.productId },
+    ...payload.variantOptionId !== void 0 && {
+      variantOptionId: payload.variantOptionId
+    },
+    ...payload.categoryId !== void 0 && { categoryId: payload.categoryId },
+    images: uploadedImages.map((media) => ({
+      src: media.src,
+      ...media.publicId !== void 0 && { publicId: media.publicId },
+      ...payload.altText !== void 0 && { altText: payload.altText },
+      ...payload.isPrimary !== void 0 && { isPrimary: payload.isPrimary }
+    }))
+  };
+  const result = await ImageService.createImages(createPayload);
+  sendResponse(res, {
+    statusCode: httpStatus13.CREATED,
+    success: true,
+    message: "Media uploaded successfully",
+    data: result
+  });
+});
 var getAllImages2 = catchAsync(async (req, res) => {
   const query = req.query;
   const result = await ImageService.getAllImages(query);
   sendResponse(res, {
-    statusCode: httpStatus11.OK,
+    statusCode: httpStatus13.OK,
     success: true,
-    message: "Images retrieved successfully",
+    message: "Media retrieved successfully",
     data: result
   });
 });
 var deleteImage2 = catchAsync(async (req, res) => {
-  const imageId = req.params.id;
-  const { src, publicId } = req.body;
-  const { storageType } = req.query;
-  const _result = await ImageService.deleteImage(imageId, storageType, {
-    ...src !== void 0 && { src },
-    ...publicId !== void 0 && { publicId }
-  });
+  const imageId = getParamAsString3(req.params.id, "Image id");
+  await ImageService.deleteImage(imageId);
   sendResponse(res, {
-    statusCode: httpStatus11.OK,
+    statusCode: httpStatus13.OK,
     success: true,
-    message: "Image deleted successfully",
+    message: "Media deleted successfully",
     data: null
   });
 });
@@ -3128,20 +3698,53 @@ var ImageController = {
   deleteImage: deleteImage2
 };
 
+// src/app/modules/image/image.validation.ts
+import { z as z4 } from "zod";
+var uuidSchema = z4.string().uuid();
+var mediaUrlsSchema = z4.preprocess((value) => {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return void 0;
+    }
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      } catch {
+        return value;
+      }
+    }
+    return [trimmed];
+  }
+  return value;
+}, z4.array(z4.string().url({ message: "Each media URL must be valid" })).optional());
+var createMediaZodSchema = z4.object({
+  productId: uuidSchema.optional(),
+  variantOptionId: uuidSchema.optional(),
+  categoryId: uuidSchema.optional(),
+  altText: z4.string().min(1, { message: "altText cannot be empty" }).max(255, { message: "altText cannot exceed 255 characters" }).optional(),
+  isPrimary: z4.coerce.boolean().optional(),
+  mediaUrl: z4.string().url({ message: "mediaUrl must be a valid URL" }).optional(),
+  mediaUrls: mediaUrlsSchema
+});
+
 // src/app/modules/image/image.route.ts
 var router4 = Router4();
 router4.post(
-  "/create",
+  "/upload",
   checkAuth("ADMIN" /* ADMIN */),
   uploadImages,
+  validateRequest(createMediaZodSchema),
   ImageController.createImages
 );
 router4.get("/", checkAuth("ADMIN" /* ADMIN */), ImageController.getAllImages);
-router4.delete(
-  "/delete/:id",
-  checkAuth("ADMIN" /* ADMIN */),
-  ImageController.deleteImage
-);
+router4.delete("/:id", checkAuth("ADMIN" /* ADMIN */), ImageController.deleteImage);
 var ImageRoutes = router4;
 
 // src/app/routes/index.ts
@@ -3173,7 +3776,7 @@ moduleRoutes.forEach((route) => {
 });
 
 // src/app/middlewares/globalErrorHandler.ts
-import httpStatus12 from "http-status-codes";
+import httpStatus14 from "http-status-codes";
 import { ZodError } from "zod";
 var globalErrorHandler = async (err, req, res, next) => {
   await cleanupImages(
@@ -3202,7 +3805,7 @@ var globalErrorHandler = async (err, req, res, next) => {
     message = err.message;
   } else if (err.name === "CastError") {
   } else if (err instanceof ZodError) {
-    statusCode = httpStatus12.BAD_REQUEST;
+    statusCode = httpStatus14.BAD_REQUEST;
     message = "Validation error";
     errorSources = err.issues.map((issue) => ({
       path: issue.path.join("."),
@@ -3225,9 +3828,9 @@ var globalErrorHandler = async (err, req, res, next) => {
 };
 
 // src/app/middlewares/notFound.ts
-import httpStatus13 from "http-status-codes";
+import httpStatus15 from "http-status-codes";
 var notFound = (req, res) => {
-  res.status(httpStatus13.NOT_FOUND).json({
+  res.status(httpStatus15.NOT_FOUND).json({
     success: false,
     message: "Route Not Found"
   });
