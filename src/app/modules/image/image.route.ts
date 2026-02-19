@@ -12,7 +12,7 @@ const router = Router();
 
 router.post(
   "/upload",
-  checkAuth(Role.ADMIN, Role.USER),
+  checkAuth(Role.ADMIN),
   uploadImages,
   validateRequest(createMediaZodSchema),
   ImageController.createImages,
