@@ -6,7 +6,7 @@ import {
 } from "passport-google-oauth20";
 import { Strategy as LocalStrategy } from "passport-local";
 import { prisma } from "../lib/prisma";
-import { Role, UserStatus } from "../modules/user-pre/user.interface";
+import { Role, UserStatus } from "../modules/user/user.interface";
 import { envVars } from "./env";
 
 const toPassportUser = (user: {

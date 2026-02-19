@@ -1,121 +1,195 @@
 import httpStatus from "http-status-codes";
+import type { Prisma } from "../../../../generated/prisma/client";
 import AppError from "../../helper/AppError";
 import { prisma } from "../../lib/prisma";
 import { QueryBuilder } from "../../utils/QueryBuilder";
 import { cleanupImages } from "../../utils/cleanupImage";
+import type { ICreateMediaPayload, MediaStorageType } from "./image.interface";
 
-type CreateImagePayload = {
-  productId?: string;
-  variantOptionId?: string;
-  categoryId?: string;
-  images: {
-    src: string;
-    publicId: string;
-    altText?: string;
-    isPrimary?: boolean;
-  }[];
-};
+const mediaSelect = {
+  id: true,
+  src: true,
+  publicId: true,
+  altText: true,
+  isPrimary: true,
+  productId: true,
+  variantOptionId: true,
+  categoryId: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.ProductImageSelect;
 
-const createImages = async (payload: CreateImagePayload) => {
-  const { productId, variantOptionId, categoryId, images } = payload;
+const videoExtensions = new Set([
+  ".mp4",
+  ".mov",
+  ".avi",
+  ".webm",
+  ".mkv",
+  ".m4v",
+]);
 
-  if (!images?.length) {
-    throw new AppError(httpStatus.BAD_REQUEST, "Images are required");
+const getMediaType = (src: string) => {
+  const normalized = src.split("?")[0]?.split("#")[0] ?? src;
+
+  for (const ext of videoExtensions) {
+    if (normalized.toLowerCase().endsWith(ext)) {
+      return "video" as const;
+    }
   }
 
-  // 🔒 safety: at least one relation
-  //   if (!productId && !variantOptionId && !categoryId) {
-  //     throw new AppError(
-  //       httpStatus.BAD_REQUEST,
-  //       "productId or variantOptionId or categoryId required",
-  //     );
-  //   }
+  return "image" as const;
+};
+
+const resolveStorageType = (image: { src: string; publicId: string | null }) => {
+  const publicId = image.publicId ?? "";
+
+  if (publicId.startsWith("link:")) {
+    return "link" as MediaStorageType;
+  }
+
+  if (publicId.startsWith("local:")) {
+    return "local" as MediaStorageType;
+  }
+
+  if (publicId.startsWith("cloudinary:")) {
+    return "cloudinary" as MediaStorageType;
+  }
+
+  if (publicId.startsWith("supabase:")) {
+    return "supabase" as MediaStorageType;
+  }
+
+  if (image.src.startsWith("/api/uploads/")) {
+    return "local" as MediaStorageType;
+  }
+
+  if (image.src.includes("res.cloudinary.com")) {
+    return "cloudinary" as MediaStorageType;
+  }
+
+  if (image.src.includes("supabase.co/storage/v1/object/public")) {
+    return "supabase" as MediaStorageType;
+  }
+
+  return "link" as MediaStorageType;
+};
+
+const ensureRelationsExist = async (payload: ICreateMediaPayload) => {
+  const [product, variantOption, category] = await Promise.all([
+    payload.productId
+      ? prisma.product.findUnique({
+          where: { id: payload.productId },
+          select: { id: true },
+        })
+      : Promise.resolve(null),
+    payload.variantOptionId
+      ? prisma.variantOption.findUnique({
+          where: { id: payload.variantOptionId },
+          select: { id: true },
+        })
+      : Promise.resolve(null),
+    payload.categoryId
+      ? prisma.category.findUnique({
+          where: { id: payload.categoryId },
+          select: { id: true },
+        })
+      : Promise.resolve(null),
+  ]);
+
+  if (payload.productId && !product) {
+    throw new AppError(httpStatus.NOT_FOUND, "Product not found");
+  }
+
+  if (payload.variantOptionId && !variantOption) {
+    throw new AppError(httpStatus.NOT_FOUND, "Variant option not found");
+  }
+
+  if (payload.categoryId && !category) {
+    throw new AppError(httpStatus.NOT_FOUND, "Category not found");
+  }
+};
+
+const createImages = async (payload: ICreateMediaPayload) => {
+  if (!payload.images.length) {
+    throw new AppError(httpStatus.BAD_REQUEST, "Media files are required");
+  }
+
+  await ensureRelationsExist(payload);
 
   const createdImages = await prisma.productImage.createManyAndReturn({
-    data: images.map((img) => ({
-      src: img.src,
-      publicId: img.publicId,
-      altText: img.altText ?? null,
-      isPrimary: img.isPrimary ?? false,
-
-      productId: productId ?? null,
-      variantOptionId: variantOptionId ?? null,
-      categoryId: categoryId ?? null,
+    data: payload.images.map((media) => ({
+      src: media.src,
+      publicId: media.publicId ?? null,
+      altText: media.altText ?? null,
+      isPrimary: media.isPrimary ?? false,
+      productId: payload.productId ?? null,
+      variantOptionId: payload.variantOptionId ?? null,
+      categoryId: payload.categoryId ?? null,
     })),
-    select: {
-      id: true,
-      src: true,
-      publicId: true,
-      altText: true,
-      isPrimary: true,
-      productId: true,
-      variantOptionId: true,
-      categoryId: true,
-      createdAt: true,
-    },
+    select: mediaSelect,
   });
 
-  return createdImages;
-
-  //   const created = await prisma.productImage.createMany({
-  //     data: images.map((img) => ({
-  //       src: img.src,
-  //       publicId: img.publicId,
-  //       altText: img.altText ?? null,
-  //       isPrimary: img.isPrimary ?? false,
-
-  //       productId: productId ?? null,
-  //       variantOptionId: variantOptionId ?? null,
-  //       categoryId: categoryId ?? null,
-  //     })),
-
-  //   });
+  return createdImages.map((media) => ({
+    ...media,
+    mediaType: getMediaType(media.src),
+  }));
 };
-// const getAllImages = async () => {
-//   const images = await prisma.productImage.findMany({
-//     orderBy: {
-//       createdAt: "desc",
-//     },
-//   });
-//   return images;
-// };
-const getAllImages = async (query: Record<string, any>) => {
-  const qb = new QueryBuilder<any, any, any>({ ...query, limit: "12" })
+
+const getAllImages = async (query: Record<string, string | undefined>) => {
+  const qb = new QueryBuilder<
+    Prisma.ProductImageWhereInput,
+    Prisma.ProductImageSelect,
+    Prisma.ProductImageOrderByWithRelationInput[]
+  >({ ...query })
     .filter()
     .search(["altText", "src", "publicId"])
     .sort()
     .fields()
     .paginate();
 
-  const prismaQuery = qb.build();
+  const builtQuery = qb.build() as Prisma.ProductImageFindManyArgs;
 
-  const data = await prisma.productImage.findMany(prismaQuery);
-
-  const meta = await qb.getMeta(prisma.productImage);
+  const [rows, meta] = await Promise.all([
+    prisma.productImage.findMany({
+      ...builtQuery,
+      select: builtQuery.select ?? mediaSelect,
+    }),
+    qb.getMeta(prisma.productImage),
+  ]);
 
   return {
     meta,
-    data,
+    data: rows.map((media) => ({
+      ...media,
+      mediaType: getMediaType(media.src),
+    })),
   };
 };
 
-const deleteImage = async (
-  imageId: string,
-  storageType: "local" | "cloudinary" | "custom",
-  payload: { src?: string; publicId?: string },
-) => {
-  console.log(payload);
+const deleteImage = async (imageId: string) => {
+  const image = await prisma.productImage.findUnique({
+    where: { id: imageId },
+    select: {
+      id: true,
+      src: true,
+      publicId: true,
+    },
+  });
+
+  if (!image) {
+    throw new AppError(httpStatus.NOT_FOUND, "Media not found");
+  }
+
   await cleanupImages([
     {
-      storageType,
-      ...(payload?.publicId !== undefined && { publicId: payload.publicId }),
-      ...(payload?.src !== undefined && { src: payload.src }),
+      storageType: resolveStorageType(image),
+      src: image.src,
+      ...(image.publicId !== null && { publicId: image.publicId }),
     },
   ]);
+
   await prisma.productImage.delete({
-    where: {
-      id: imageId,
-    },
+    where: { id: image.id },
   });
 };
 

@@ -89,7 +89,6 @@
   "exclude": [
     "node_modules",
     "dist",
-    "generated/prisma",
-    "src/app/modules/user/**/*"
+    "generated/prisma"
   ]
 }
