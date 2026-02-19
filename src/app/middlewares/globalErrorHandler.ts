@@ -20,7 +20,7 @@ export const globalErrorHandler = async (
   await cleanupImages(
     req.uploadedImages as
       | {
-          storageType: "local" | "cloudinary" | "custom";
+          storageType: "link" | "local" | "cloudinary" | "supabase";
           src?: string;
           publicId?: string;
         }[]

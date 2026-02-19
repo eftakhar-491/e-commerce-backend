@@ -1,62 +1,63 @@
-import { ObjectId, Types } from "mongoose";
-
 export enum Role {
   ADMIN = "ADMIN",
-  RIDER = "RIDER",
-  DRIVER = "DRIVER",
+  USER = "USER",
+  MANAGER = "MANAGER",
 }
 
-export interface IAuthProvider {
-  provider: "google" | "credentials";
-  providerId: string;
-}
-
-export enum IsActive {
+export enum UserStatus {
   ACTIVE = "ACTIVE",
-  BLOCK = "BLOCK",
-  INACTIVE = "INACTIVE",
+  BLOCKED = "BLOCKED",
+  DELETED = "DELETED",
 }
-export enum IsDriverActive {
-  REQUESTED = "REQUESTED",
-  APPROVED = "APPROVED",
-  SUSPENDED = "SUSPENDED",
-  INACTIVE = "INACTIVE",
-}
-export enum IsAdminActive {
-  REQUESTED = "REQUESTED",
-  APPROVED = "APPROVED",
-  SUSPENDED = "SUSPENDED",
-}
-export interface IVehicle {
-  type: string;
-  number: string;
-  model: string;
-}
+
 export interface IUser {
-  _id?: Types.ObjectId;
-  name: string;
+  id: string;
+  name: string | null;
   email: string;
-  password?: string;
-  phone?: string;
-  picture?: string;
-  address?: string;
-  isDeleted?: boolean;
-  isVerified?: boolean;
   role: Role;
-  auths: IAuthProvider[];
-  createdAt?: Date;
+  image?: string | null;
+  phone: string | null;
+  status: UserStatus;
+  emailVerified: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-export interface IRider extends IUser {
-  isActive?: IsActive;
+export interface IUpdateMePayload {
+  name?: string;
+  phone?: string;
+  image?: string | null;
+  status?: UserStatus;
 }
 
-export interface IDriver extends IUser {
-  isActive?: IsDriverActive;
-  isOnline?: boolean;
-  vehicle: IVehicle;
-  isRideAccepted?: ObjectId;
+export interface IAdminUpdateUserPayload {
+  name?: string;
+  role?: Role;
+  emailVerified?: boolean;
+  status?: UserStatus;
+  phone?: string;
 }
-export interface IAdmin extends IUser {
-  isActive: IsAdminActive;
+
+export interface ICreateAddressPayload {
+  label?: string;
+  recipient?: string;
+  phone?: string;
+  street: string;
+  city: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
+  isDefault?: boolean;
+}
+
+export interface IUpdateAddressPayload {
+  label?: string;
+  recipient?: string;
+  phone?: string;
+  street?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
+  isDefault?: boolean;
 }
