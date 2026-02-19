@@ -1,76 +1,57 @@
-import type { ICategory } from "../category/category.interface";
-
-export interface IBaseEntity {
-  id: string;
-  createdAt: Date;
-  updatedAt?: Date;
+export interface IVariantOptionInput {
+  sku: string;
+  barcode?: string;
+  price: number;
+  compareAtPrice?: number;
+  costPrice?: number;
+  stock?: number;
+  isActive?: boolean;
+  imageIds?: string[];
 }
 
-export interface IProduct extends IBaseEntity {
+export interface IProductVariantInput {
+  title: string;
+  isActive?: boolean;
+  imageIds?: string[];
+  options: IVariantOptionInput[];
+}
+
+export interface ICreateProductPayload {
   title: string;
   slug: string;
   description?: string;
   shortDesc?: string;
-
-  categoryId: string;
   brand?: string;
-
-  hasVariants: boolean;
-  isActive: boolean;
-  isFeatured: boolean;
-
-  category?: ICategory;
-  variants?: IProductVariant[];
-  images?: IProductImage[];
-  //   reviews?: IReview[];
-  //   tags?: IProductTag[];
-}
-
-export interface IProductVariant extends IBaseEntity {
-  productId: string;
-  title: string;
-  isActive: boolean;
-
-  product?: IProduct;
-  options?: IVariantOption[];
-  images?: IProductImage[];
-}
-
-export interface IVariantOption extends IBaseEntity {
-  productVariantId: string;
-
-  sku: string;
-  stock: number;
-
-  price: number;
-  comparePrice?: number;
+  categoryId?: string | null;
+  price?: number;
+  compareAtPrice?: number;
   costPrice?: number;
-
-  name: string;
-  value: string;
-  isActive: boolean;
-
-  variant?: IProductVariant;
-  images?: IProductImage[];
-
-  //   cartItems?: ICartItem[];
-  //   orderItems?: IOrderItem[];
+  sku?: string;
+  barcode?: string;
+  stock?: number;
+  lowStockThreshold?: number;
+  hasVariants?: boolean;
+  isActive?: boolean;
+  isFeatured?: boolean;
+  isDigital?: boolean;
+  metaTitle?: string;
+  metaDescription?: string;
+  metaKeywords?: string;
+  metadata?: unknown;
+  imageIds?: string[];
+  variants?: IProductVariantInput[];
 }
 
-export interface IProductImage {
-  id: string;
+export interface IUpdateProductPayload extends Partial<ICreateProductPayload> {}
 
-  productId?: string;
-  variantId?: string;
-  variantOptionId?: string;
-
-  src: string;
-  altText?: string;
-  isPrimary: boolean;
-
-  product?: IProduct;
-  variant?: IProductVariant;
-  option?: IVariantOption;
-
-  createdAt: Date;
+export interface IProductQuery {
+  page?: string;
+  limit?: string;
+  searchTerm?: string;
+  sort?: string;
+  categoryId?: string;
+  isActive?: string;
+  hasVariants?: string;
+  isFeatured?: string;
+  brand?: string;
 }

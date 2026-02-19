@@ -5,6 +5,7 @@ export type MediaType = "image" | "video";
 export interface IProductImage {
   id: string;
   productId?: string | null;
+  variantId?: string | null;
   variantOptionId?: string | null;
   categoryId?: string | null;
   src: string;
@@ -23,6 +24,7 @@ export interface IUploadedMedia {
 
 export interface ICreateMediaRequestBody {
   productId?: string;
+  variantId?: string;
   variantOptionId?: string;
   categoryId?: string;
   altText?: string;
@@ -33,6 +35,7 @@ export interface ICreateMediaRequestBody {
 
 export interface ICreateMediaPayload {
   productId?: string;
+  variantId?: string;
   variantOptionId?: string;
   categoryId?: string;
   images: {

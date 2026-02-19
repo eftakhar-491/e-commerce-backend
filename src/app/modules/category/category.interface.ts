@@ -4,6 +4,14 @@ export interface ICategory {
   slug: string;
   description: string | null;
   image: string | null;
+  images?: {
+    id: string;
+    src: string;
+    publicId: string | null;
+    altText: string | null;
+    sortOrder: number;
+    isPrimary: boolean;
+  }[];
   isActive: boolean;
   sortOrder: number;
   parentId: string | null;
@@ -19,6 +27,7 @@ export interface ICreateCategoryPayload {
   slug: string;
   description?: string;
   image?: string;
+  imageIds?: string[];
   isActive?: boolean;
   sortOrder?: number;
   parentId?: string | null;
@@ -32,6 +41,7 @@ export interface IUpdateCategoryPayload {
   slug?: string;
   description?: string;
   image?: string;
+  imageIds?: string[];
   isActive?: boolean;
   sortOrder?: number;
   parentId?: string | null;
