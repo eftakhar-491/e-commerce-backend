@@ -2,6 +2,7 @@ import httpStatus from "http-status-codes";
 import type { Prisma } from "../../../../generated/prisma/client";
 import AppError from "../../helper/AppError";
 import { prisma } from "../../lib/prisma";
+import { QueryBuilder } from "../../utils/QueryBuilder";
 import { categorySearchableFields } from "./category.constant";
 import type {
   ICategoryCollectionNode,
@@ -302,12 +303,45 @@ const sortCollectionTree = (nodes: ICategoryCollectionNode[]) => {
   nodes.forEach((node) => sortCollectionTree(node.children));
 };
 
-const getPublicCollections = async () => {
+const getPublicCollections = async (query: Record<string, string | undefined>) => {
+  const page = Math.max(Number(query.page) || 1, 1);
+  const limit = Math.min(Math.max(Number(query.limit) || 10, 1), 100);
+  const skip = (page - 1) * limit;
+
+  const qb = new QueryBuilder<
+    Prisma.CategoryWhereInput,
+    Prisma.CategorySelect,
+    Prisma.CategoryOrderByWithRelationInput[]
+  >({
+    ...query,
+    sort: query.sort ?? "sortOrder,name",
+  })
+    .filter()
+    .search(categorySearchableFields)
+    .sort();
+
+  const builtQuery = qb.build() as Prisma.CategoryFindManyArgs;
+  const where: Prisma.CategoryWhereInput = {
+    ...(builtQuery.where ?? {}),
+    isActive: true,
+  };
+
+  if (query.parentId !== undefined) {
+    const parentId = query.parentId.trim().toLowerCase();
+
+    where.parentId =
+      parentId === "" || parentId === "null" || parentId === "root"
+        ? null
+        : query.parentId;
+  }
+
   const categories = await prisma.category.findMany({
-    where: {
-      isActive: true,
-    },
-    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    where,
+    orderBy:
+      (builtQuery.orderBy as Prisma.CategoryOrderByWithRelationInput[]) ?? [
+        { sortOrder: "asc" },
+        { name: "asc" },
+      ],
     select: collectionCategorySelect,
   });
 
@@ -348,7 +382,18 @@ const getPublicCollections = async () => {
 
   sortCollectionTree(roots);
 
-  return roots;
+  const total = roots.length;
+  const data = roots.slice(skip, skip + limit);
+
+  return {
+    meta: {
+      page,
+      limit,
+      total,
+      totalPage: Math.ceil(total / limit),
+    },
+    data,
+  };
 };
 
 const getCategoryById = async (categoryId: string) => {

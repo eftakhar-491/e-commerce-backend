@@ -42,14 +42,16 @@ const getCategories = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-const getPublicCollections = catchAsync(async (_: Request, res: Response) => {
-  const result = await CategoryService.getPublicCollections();
+const getPublicCollections = catchAsync(async (req: Request, res: Response) => {
+  const query = req.query as Record<string, string | undefined>;
+  const result = await CategoryService.getPublicCollections(query);
 
   sendResponse(res, {
     success: true,
     statusCode: httpStatus.OK,
     message: "Collections retrieved successfully",
-    data: result,
+    data: result.data,
+    meta: result.meta,
   });
 });
 
