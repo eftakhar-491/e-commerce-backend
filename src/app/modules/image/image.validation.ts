@@ -34,6 +34,7 @@ const mediaUrlsSchema = z.preprocess((value) => {
 
 export const createMediaZodSchema = z.object({
   productId: uuidSchema.optional(),
+  variantId: uuidSchema.optional(),
   variantOptionId: uuidSchema.optional(),
   categoryId: uuidSchema.optional(),
   altText: z
