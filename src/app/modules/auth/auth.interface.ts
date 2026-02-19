@@ -1,4 +1,4 @@
-import type { Role, UserStatus } from "../user-pre/user.interface";
+import type { Role, UserStatus } from "../user/user.interface";
 
 export interface IRegisterPayload {
   name: string;
