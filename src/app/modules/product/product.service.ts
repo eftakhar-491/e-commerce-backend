@@ -564,12 +564,26 @@ const createVariantTree = async (
 const createProduct = async (payload: ICreateProductPayload) => {
   const hasVariants = payload.hasVariants ?? false;
   const variants = hasVariants ? (payload.variants ?? []) : [];
-  const productPrice = hasVariants ? null : (payload.price ?? null);
+  const productPrice = payload.price ?? null;
 
   if (hasVariants && !variants.length) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
       "Variants are required when hasVariants is true",
+    );
+  }
+
+  if (!hasVariants && payload.variants?.length) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Set hasVariants to true to submit variants",
+    );
+  }
+
+  if (hasVariants && productPrice === null) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Base product price is required when hasVariants is true",
     );
   }
 
@@ -685,6 +699,7 @@ const updateProduct = async (
     select: {
       id: true,
       hasVariants: true,
+      price: true,
     },
   });
 
@@ -730,6 +745,8 @@ const updateProduct = async (
         : payload.variants !== undefined
           ? payload.variants.length > 0
           : existingProduct.hasVariants;
+    const nextBasePrice =
+      payload.price !== undefined ? payload.price : existingProduct.price;
 
     if (payload.title !== undefined) {
       updateData.title = payload.title;
@@ -755,10 +772,15 @@ const updateProduct = async (
       updateData.categoryId = payload.categoryId;
     }
 
-    if (nextHasVariants) {
-      updateData.price = null;
-    } else if (payload.price !== undefined) {
+    if (payload.price !== undefined) {
       updateData.price = payload.price;
+    }
+
+    if (nextHasVariants && nextBasePrice === null) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        "Base product price is required when hasVariants is true",
+      );
     }
 
     if (payload.compareAtPrice !== undefined) {
