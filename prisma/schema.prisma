@@ -929,12 +929,23 @@ model SearchQuery {
 model ConversionEvent {
   id          String   @id @default(uuid())
   eventType   String   // e.g., "Purchase", "AddToCart", "ViewContent"
+  eventId     String?  @unique
   userId      String?
   sessionId   String?
   orderId     String?  // If purchase
   productId   String?  // If product-specific
   value       Float?   // Event value
   currency    String?  @default("BDT")
+  sourceUrl   String?
+  ipAddress   String?
+  userAgent   String?
+  sentToMeta  Boolean  @default(false)
+  sentToGa4   Boolean  @default(false)
+  metaLastSentAt DateTime?
+  ga4LastSentAt DateTime?
+  attemptCount Int     @default(0)
+  lastAttemptAt DateTime?
+  lastError   String?
   metadata    Json?    // Custom pixel data
 
   user        User?    @relation(fields: [userId], references: [id])
@@ -946,5 +957,6 @@ model ConversionEvent {
   @@index([eventType, createdAt])
   @@index([userId, createdAt])
   @@index([sessionId])
+  @@index([sentToMeta, sentToGa4])
   @@map("conversion_events")
 }
