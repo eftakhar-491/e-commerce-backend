@@ -319,19 +319,46 @@ const attachImagesToProduct = async (
 
   const uniqueImageIds = [...new Set(imageIds)];
 
-  const updated = await tx.productImage.updateMany({
-    where: {
-      id: { in: uniqueImageIds },
-      OR: [{ productId: null }, { productId }],
-    },
-    data: { productId },
-  });
+  for (const imageId of uniqueImageIds) {
+    const image = await tx.productImage.findUnique({
+      where: { id: imageId },
+      select: {
+        id: true,
+        src: true,
+        publicId: true,
+        altText: true,
+        sortOrder: true,
+        isPrimary: true,
+        productId: true,
+      },
+    });
 
-  if (updated.count !== uniqueImageIds.length) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      "Some product image ids are invalid or already assigned",
-    );
+    if (!image) {
+      throw new AppError(httpStatus.BAD_REQUEST, `Image '${imageId}' not found`);
+    }
+
+    if (image.productId === productId) {
+      continue;
+    }
+
+    if (image.productId === null) {
+      await tx.productImage.update({
+        where: { id: image.id },
+        data: { productId },
+      });
+      continue;
+    }
+
+    await tx.productImage.create({
+      data: {
+        src: image.src,
+        publicId: image.publicId,
+        altText: image.altText,
+        sortOrder: image.sortOrder,
+        isPrimary: image.isPrimary,
+        productId,
+      },
+    });
   }
 };
 
@@ -346,19 +373,46 @@ const attachImagesToVariant = async (
 
   const uniqueImageIds = [...new Set(imageIds)];
 
-  const updated = await tx.productImage.updateMany({
-    where: {
-      id: { in: uniqueImageIds },
-      OR: [{ variantId: null }, { variantId }],
-    },
-    data: { variantId },
-  });
+  for (const imageId of uniqueImageIds) {
+    const image = await tx.productImage.findUnique({
+      where: { id: imageId },
+      select: {
+        id: true,
+        src: true,
+        publicId: true,
+        altText: true,
+        sortOrder: true,
+        isPrimary: true,
+        variantId: true,
+      },
+    });
 
-  if (updated.count !== uniqueImageIds.length) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      "Some variant image ids are invalid or already assigned",
-    );
+    if (!image) {
+      throw new AppError(httpStatus.BAD_REQUEST, `Image '${imageId}' not found`);
+    }
+
+    if (image.variantId === variantId) {
+      continue;
+    }
+
+    if (image.variantId === null) {
+      await tx.productImage.update({
+        where: { id: image.id },
+        data: { variantId },
+      });
+      continue;
+    }
+
+    await tx.productImage.create({
+      data: {
+        src: image.src,
+        publicId: image.publicId,
+        altText: image.altText,
+        sortOrder: image.sortOrder,
+        isPrimary: image.isPrimary,
+        variantId,
+      },
+    });
   }
 };
 
@@ -373,19 +427,46 @@ const attachImagesToVariantOption = async (
 
   const uniqueImageIds = [...new Set(imageIds)];
 
-  const updated = await tx.productImage.updateMany({
-    where: {
-      id: { in: uniqueImageIds },
-      OR: [{ variantOptionId: null }, { variantOptionId }],
-    },
-    data: { variantOptionId },
-  });
+  for (const imageId of uniqueImageIds) {
+    const image = await tx.productImage.findUnique({
+      where: { id: imageId },
+      select: {
+        id: true,
+        src: true,
+        publicId: true,
+        altText: true,
+        sortOrder: true,
+        isPrimary: true,
+        variantOptionId: true,
+      },
+    });
 
-  if (updated.count !== uniqueImageIds.length) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      "Some variant option image ids are invalid or already assigned",
-    );
+    if (!image) {
+      throw new AppError(httpStatus.BAD_REQUEST, `Image '${imageId}' not found`);
+    }
+
+    if (image.variantOptionId === variantOptionId) {
+      continue;
+    }
+
+    if (image.variantOptionId === null) {
+      await tx.productImage.update({
+        where: { id: image.id },
+        data: { variantOptionId },
+      });
+      continue;
+    }
+
+    await tx.productImage.create({
+      data: {
+        src: image.src,
+        publicId: image.publicId,
+        altText: image.altText,
+        sortOrder: image.sortOrder,
+        isPrimary: image.isPrimary,
+        variantOptionId,
+      },
+    });
   }
 };
 
@@ -483,6 +564,7 @@ const createVariantTree = async (
 const createProduct = async (payload: ICreateProductPayload) => {
   const hasVariants = payload.hasVariants ?? false;
   const variants = hasVariants ? (payload.variants ?? []) : [];
+  const productPrice = hasVariants ? null : (payload.price ?? null);
 
   if (hasVariants && !variants.length) {
     throw new AppError(
@@ -507,7 +589,7 @@ const createProduct = async (payload: ICreateProductPayload) => {
         shortDesc: payload.shortDesc ?? null,
         brand: payload.brand ?? null,
         categoryId: payload.categoryId ?? null,
-        price: payload.price ?? null,
+        price: productPrice,
         compareAtPrice: payload.compareAtPrice ?? null,
         costPrice: payload.costPrice ?? null,
         sku: payload.sku ?? null,
@@ -642,6 +724,12 @@ const updateProduct = async (
 
   const updatedProduct = await prisma.$transaction(async (tx) => {
     const updateData: Prisma.ProductUncheckedUpdateInput = {};
+    const nextHasVariants =
+      payload.hasVariants !== undefined
+        ? payload.hasVariants
+        : payload.variants !== undefined
+          ? payload.variants.length > 0
+          : existingProduct.hasVariants;
 
     if (payload.title !== undefined) {
       updateData.title = payload.title;
@@ -667,7 +755,9 @@ const updateProduct = async (
       updateData.categoryId = payload.categoryId;
     }
 
-    if (payload.price !== undefined) {
+    if (nextHasVariants) {
+      updateData.price = null;
+    } else if (payload.price !== undefined) {
       updateData.price = payload.price;
     }
 

@@ -200,19 +200,46 @@ const attachImagesToCategory = async (
 
   const uniqueImageIds = [...new Set(imageIds)];
 
-  const updated = await tx.productImage.updateMany({
-    where: {
-      id: { in: uniqueImageIds },
-      OR: [{ categoryId: null }, { categoryId }],
-    },
-    data: { categoryId },
-  });
+  for (const imageId of uniqueImageIds) {
+    const image = await tx.productImage.findUnique({
+      where: { id: imageId },
+      select: {
+        id: true,
+        src: true,
+        publicId: true,
+        altText: true,
+        sortOrder: true,
+        isPrimary: true,
+        categoryId: true,
+      },
+    });
 
-  if (updated.count !== uniqueImageIds.length) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      "Some category image ids are invalid or already assigned",
-    );
+    if (!image) {
+      throw new AppError(httpStatus.BAD_REQUEST, `Image '${imageId}' not found`);
+    }
+
+    if (image.categoryId === categoryId) {
+      continue;
+    }
+
+    if (image.categoryId === null) {
+      await tx.productImage.update({
+        where: { id: image.id },
+        data: { categoryId },
+      });
+      continue;
+    }
+
+    await tx.productImage.create({
+      data: {
+        src: image.src,
+        publicId: image.publicId,
+        altText: image.altText,
+        sortOrder: image.sortOrder,
+        isPrimary: image.isPrimary,
+        categoryId,
+      },
+    });
   }
 };
 
