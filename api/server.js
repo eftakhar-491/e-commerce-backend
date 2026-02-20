@@ -3104,11 +3104,23 @@ var createVariantTree = async (tx, productId, variants) => {
 var createProduct = async (payload) => {
   const hasVariants = payload.hasVariants ?? false;
   const variants = hasVariants ? payload.variants ?? [] : [];
-  const productPrice = hasVariants ? null : payload.price ?? null;
+  const productPrice = payload.price ?? null;
   if (hasVariants && !variants.length) {
     throw new AppError_default(
       httpStatus7.BAD_REQUEST,
       "Variants are required when hasVariants is true"
+    );
+  }
+  if (!hasVariants && payload.variants?.length) {
+    throw new AppError_default(
+      httpStatus7.BAD_REQUEST,
+      "Set hasVariants to true to submit variants"
+    );
+  }
+  if (hasVariants && productPrice === null) {
+    throw new AppError_default(
+      httpStatus7.BAD_REQUEST,
+      "Base product price is required when hasVariants is true"
     );
   }
   await Promise.all([
@@ -3203,7 +3215,8 @@ var updateProduct = async (productId, payload) => {
     where: { id: productId },
     select: {
       id: true,
-      hasVariants: true
+      hasVariants: true,
+      price: true
     }
   });
   if (!existingProduct) {
@@ -3233,6 +3246,7 @@ var updateProduct = async (productId, payload) => {
   const updatedProduct = await prisma.$transaction(async (tx) => {
     const updateData = {};
     const nextHasVariants = payload.hasVariants !== void 0 ? payload.hasVariants : payload.variants !== void 0 ? payload.variants.length > 0 : existingProduct.hasVariants;
+    const nextBasePrice = payload.price !== void 0 ? payload.price : existingProduct.price;
     if (payload.title !== void 0) {
       updateData.title = payload.title;
     }
@@ -3251,10 +3265,14 @@ var updateProduct = async (productId, payload) => {
     if (payload.categoryId !== void 0) {
       updateData.categoryId = payload.categoryId;
     }
-    if (nextHasVariants) {
-      updateData.price = null;
-    } else if (payload.price !== void 0) {
+    if (payload.price !== void 0) {
       updateData.price = payload.price;
+    }
+    if (nextHasVariants && nextBasePrice === null) {
+      throw new AppError_default(
+        httpStatus7.BAD_REQUEST,
+        "Base product price is required when hasVariants is true"
+      );
     }
     if (payload.compareAtPrice !== void 0) {
       updateData.compareAtPrice = payload.compareAtPrice;
@@ -3492,7 +3510,7 @@ var imageIdsZodSchema = z3.array(z3.string().uuid({ message: "Each image id must
 var variantOptionInputZodSchema = z3.object({
   sku: z3.string().trim().min(1, { message: "Option SKU is required" }).max(100, { message: "Option SKU cannot exceed 100 characters" }),
   barcode: optionalText(100),
-  price: z3.coerce.number().min(0, { message: "Price cannot be negative" }),
+  price: z3.coerce.number().min(0, { message: "Variant additional price cannot be negative" }),
   compareAtPrice: z3.coerce.number().min(0, { message: "Compare at price cannot be negative" }).optional(),
   costPrice: z3.coerce.number().min(0, { message: "Cost price cannot be negative" }).optional(),
   stock: z3.coerce.number().int({ message: "Stock must be an integer" }).min(0, { message: "Stock cannot be negative" }).optional(),
@@ -3542,7 +3560,7 @@ var createProductZodSchema = z3.object({
   shortDesc: optionalText(500),
   brand: optionalText(100),
   categoryId: nullableUuidSchema,
-  price: z3.coerce.number().min(0, { message: "Price cannot be negative" }).optional(),
+  price: z3.coerce.number().min(0, { message: "Base product price cannot be negative" }).optional(),
   compareAtPrice: z3.coerce.number().min(0, { message: "Compare at price cannot be negative" }).optional(),
   costPrice: z3.coerce.number().min(0, { message: "Cost price cannot be negative" }).optional(),
   sku: optionalText(100),
@@ -3566,6 +3584,13 @@ var createProductZodSchema = z3.object({
       code: z3.ZodIssueCode.custom,
       path: ["variants"],
       message: "Variants are required when hasVariants is true"
+    });
+  }
+  if (hasVariants && payload.price === void 0) {
+    ctx.addIssue({
+      code: z3.ZodIssueCode.custom,
+      path: ["price"],
+      message: "Base product price is required when hasVariants is true"
     });
   }
   if (!hasVariants && payload.variants?.length) {
@@ -3595,7 +3620,7 @@ var updateProductZodSchema = z3.object({
   shortDesc: optionalText(500),
   brand: optionalText(100),
   categoryId: nullableUuidSchema,
-  price: z3.coerce.number().min(0, { message: "Price cannot be negative" }).optional(),
+  price: z3.coerce.number().min(0, { message: "Base product price cannot be negative" }).optional(),
   compareAtPrice: z3.coerce.number().min(0, { message: "Compare at price cannot be negative" }).optional(),
   costPrice: z3.coerce.number().min(0, { message: "Cost price cannot be negative" }).optional(),
   sku: optionalText(100),
@@ -5550,10 +5575,166 @@ var buildOrderBy3 = (sort) => {
       [normalizedField]: isDescending ? "desc" : "asc"
     };
   }).filter(Boolean);
+// src/app/modules/review/review.route.ts
+import { Router as Router6 } from "express";
+
+// src/app/modules/review/review.controller.ts
+import httpStatus17 from "http-status-codes";
+
+// src/app/modules/review/review.service.ts
+import httpStatus16 from "http-status-codes";
+var sortableFields = ["createdAt", "updatedAt", "rating"];
+var publicReviewSelect = {
+  id: true,
+  productId: true,
+  rating: true,
+  title: true,
+  comment: true,
+  isVerifiedPurchase: true,
+  helpfulVotes: true,
+  notHelpfulVotes: true,
+  adminReply: true,
+  adminRepliedAt: true,
+  createdAt: true,
+  updatedAt: true,
+  user: {
+    select: {
+      id: true,
+      name: true,
+      image: true
+    }
+  }
+};
+var myReviewSelect = {
+  ...publicReviewSelect,
+  isApproved: true,
+  product: {
+    select: {
+      id: true,
+      title: true,
+      slug: true
+    }
+  }
+};
+var adminReviewSelect = {
+  id: true,
+  userId: true,
+  productId: true,
+  rating: true,
+  title: true,
+  comment: true,
+  isApproved: true,
+  isVerifiedPurchase: true,
+  helpfulVotes: true,
+  notHelpfulVotes: true,
+  adminReply: true,
+  adminRepliedAt: true,
+  adminRepliedBy: true,
+  createdAt: true,
+  updatedAt: true,
+  user: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      image: true
+    }
+  },
+  product: {
+    select: {
+      id: true,
+      title: true,
+      slug: true
+    }
+  },
+  admin: {
+    select: {
+      id: true,
+      name: true,
+      email: true
+    }
+  }
+};
+var getPagination = (query) => {
+  const page = Math.max(Number(query.page) || 1, 1);
+  const limit = Math.min(Math.max(Number(query.limit) || 20, 1), 100);
+  const skip = (page - 1) * limit;
+  return { page, limit, skip };
+};
+var parseBooleanQuery2 = (value, key) => {
+  if (value !== "true" && value !== "false") {
+    throw new AppError_default(httpStatus16.BAD_REQUEST, `${key} query must be true or false`);
+  }
+  return value === "true";
+};
+var parseRatingQuery = (value, key) => {
+  const rating = Number(value);
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    throw new AppError_default(httpStatus16.BAD_REQUEST, `${key} query must be an integer between 1 and 5`);
+  }
+  return rating;
+};
+var buildOrderBy3 = (sort) => {
+  if (!sort) {
+    return [{ createdAt: "desc" }];
+  }
+  const orderBy = sort.split(",").map((field) => field.trim()).filter(Boolean).map((field) => {
+    const direction = field.startsWith("-") ? "desc" : "asc";
+    const normalizedField = field.replace(/^-/, "");
+    if (!sortableFields.includes(normalizedField)) {
+      return null;
+    }
+    return {
+      [normalizedField]: direction
+    };
+  }).filter(
+    (value) => value !== null
+  );
   if (!orderBy.length) {
     return [{ createdAt: "desc" }];
   }
   return orderBy;
+};
+var addSearchFilter = (where, searchTerm) => {
+  if (!searchTerm?.trim()) {
+    return;
+  }
+  where.OR = [
+    {
+      title: {
+        contains: searchTerm,
+        mode: "insensitive"
+      }
+    },
+    {
+      comment: {
+        contains: searchTerm,
+        mode: "insensitive"
+      }
+    }
+  ];
+};
+var addRatingFilters = (where, query) => {
+  if (query.rating !== void 0) {
+    where.rating = parseRatingQuery(query.rating, "rating");
+    return;
+  }
+  const ratingFilter = {};
+  if (query.minRating !== void 0) {
+    ratingFilter.gte = parseRatingQuery(query.minRating, "minRating");
+  }
+  if (query.maxRating !== void 0) {
+    ratingFilter.lte = parseRatingQuery(query.maxRating, "maxRating");
+  }
+  if (ratingFilter.gte !== void 0 && ratingFilter.lte !== void 0 && ratingFilter.gte > ratingFilter.lte) {
+    throw new AppError_default(
+      httpStatus16.BAD_REQUEST,
+      "minRating cannot be greater than maxRating"
+    );
+  }
+  if (ratingFilter.gte !== void 0 || ratingFilter.lte !== void 0) {
+    where.rating = ratingFilter;
+  }
 };
 var ensureProductExists = async (productId) => {
   const product = await prisma.product.findUnique({
@@ -5752,6 +5933,207 @@ var getTrackingEvents = async (query) => {
       select: conversionEventSelect
     }),
     prisma.conversionEvent.count({ where })
+var createReview = async (userId, payload) => {
+  await ensureProductExists(payload.productId);
+  const existingReview = await prisma.review.findFirst({
+    where: {
+      userId,
+      productId: payload.productId
+    },
+    select: { id: true }
+  });
+  if (existingReview) {
+    throw new AppError_default(
+      httpStatus16.CONFLICT,
+      "You have already reviewed this product"
+    );
+  }
+  const orderedItem = await prisma.orderItem.findFirst({
+    where: {
+      productId: payload.productId,
+      order: {
+        userId
+      }
+    },
+    select: { id: true }
+  });
+  const createdReview = await prisma.review.create({
+    data: {
+      userId,
+      productId: payload.productId,
+      rating: payload.rating,
+      title: payload.title ?? null,
+      comment: payload.comment ?? null,
+      isVerifiedPurchase: Boolean(orderedItem)
+    },
+    select: myReviewSelect
+  });
+  return createdReview;
+};
+var getPublicReviewsByProduct = async (productId, query) => {
+  await ensureProductExists(productId);
+  const { page, limit, skip } = getPagination(query);
+  const where = {
+    productId,
+    isApproved: true
+  };
+  addSearchFilter(where, query.searchTerm);
+  addRatingFilters(where, query);
+  const [data, total, aggregate, grouped] = await Promise.all([
+    prisma.review.findMany({
+      where,
+      orderBy: buildOrderBy3(query.sort),
+      skip,
+      take: limit,
+      select: publicReviewSelect
+    }),
+    prisma.review.count({ where }),
+    prisma.review.aggregate({
+      where,
+      _avg: { rating: true },
+      _count: { _all: true }
+    }),
+    prisma.review.groupBy({
+      by: ["rating"],
+      where,
+      _count: { _all: true }
+    })
+  ]);
+  const ratingBreakdown = [5, 4, 3, 2, 1].map((rating) => ({
+    rating,
+    count: grouped.find((item) => item.rating === rating)?._count._all ?? 0
+  }));
+  return {
+    meta: {
+      page,
+      limit,
+      total,
+      totalPage: Math.ceil(total / limit)
+    },
+    summary: {
+      totalReviews: aggregate._count._all,
+      averageRating: aggregate._avg.rating ? Number(aggregate._avg.rating.toFixed(2)) : 0,
+      ratingBreakdown
+    },
+    data
+  };
+};
+var getMyReviews = async (userId, query) => {
+  const { page, limit, skip } = getPagination(query);
+  const where = {
+    userId
+  };
+  if (query.productId !== void 0) {
+    where.productId = query.productId;
+  }
+  if (query.isApproved !== void 0) {
+    where.isApproved = parseBooleanQuery2(query.isApproved, "isApproved");
+  }
+  addSearchFilter(where, query.searchTerm);
+  addRatingFilters(where, query);
+  const [data, total] = await Promise.all([
+    prisma.review.findMany({
+      where,
+      orderBy: buildOrderBy3(query.sort),
+      skip,
+      take: limit,
+      select: myReviewSelect
+    }),
+    prisma.review.count({ where })
+  ]);
+  return {
+    meta: {
+      page,
+      limit,
+      total,
+      totalPage: Math.ceil(total / limit)
+    },
+    data
+  };
+};
+var updateMyReview = async (userId, reviewId, payload) => {
+  const review = await prisma.review.findUnique({
+    where: { id: reviewId },
+    select: { id: true, userId: true }
+  });
+  if (!review) {
+    throw new AppError_default(httpStatus16.NOT_FOUND, "Review not found");
+  }
+  if (review.userId !== userId) {
+    throw new AppError_default(
+      httpStatus16.FORBIDDEN,
+      "You are not allowed to update this review"
+    );
+  }
+  const updateData = {
+    isApproved: false,
+    adminReply: null,
+    adminRepliedAt: null,
+    adminRepliedBy: null
+  };
+  if (payload.rating !== void 0) {
+    updateData.rating = payload.rating;
+  }
+  if (payload.title !== void 0) {
+    updateData.title = payload.title;
+  }
+  if (payload.comment !== void 0) {
+    updateData.comment = payload.comment;
+  }
+  const updatedReview = await prisma.review.update({
+    where: { id: reviewId },
+    data: updateData,
+    select: myReviewSelect
+  });
+  return updatedReview;
+};
+var deleteMyReview = async (userId, reviewId) => {
+  const review = await prisma.review.findUnique({
+    where: { id: reviewId },
+    select: { id: true, userId: true }
+  });
+  if (!review) {
+    throw new AppError_default(httpStatus16.NOT_FOUND, "Review not found");
+  }
+  if (review.userId !== userId) {
+    throw new AppError_default(
+      httpStatus16.FORBIDDEN,
+      "You are not allowed to delete this review"
+    );
+  }
+  await prisma.review.delete({
+    where: { id: review.id }
+  });
+};
+var getAllReviews = async (query) => {
+  const { page, limit, skip } = getPagination(query);
+  const where = {};
+  if (query.productId !== void 0) {
+    where.productId = query.productId;
+  }
+  if (query.userId !== void 0) {
+    where.userId = query.userId;
+  }
+  if (query.isApproved !== void 0) {
+    where.isApproved = parseBooleanQuery2(query.isApproved, "isApproved");
+  }
+  if (query.isVerifiedPurchase !== void 0) {
+    where.isVerifiedPurchase = parseBooleanQuery2(
+      query.isVerifiedPurchase,
+      "isVerifiedPurchase"
+    );
+  }
+  addSearchFilter(where, query.searchTerm);
+  addRatingFilters(where, query);
+  const [data, total] = await Promise.all([
+    prisma.review.findMany({
+      where,
+      orderBy: buildOrderBy3(query.sort),
+      skip,
+      take: limit,
+      select: adminReviewSelect
+    }),
+    prisma.review.count({ where })
   ]);
   return {
     meta: {
@@ -5804,6 +6186,85 @@ var TrackingService = {
 };
 
 // src/app/modules/tracking/tracking.controller.ts
+var getReviewByIdForAdmin = async (reviewId) => {
+  const review = await prisma.review.findUnique({
+    where: { id: reviewId },
+    select: adminReviewSelect
+  });
+  if (!review) {
+    throw new AppError_default(httpStatus16.NOT_FOUND, "Review not found");
+  }
+  return review;
+};
+var moderateReview = async (reviewId, payload) => {
+  const review = await prisma.review.findUnique({
+    where: { id: reviewId },
+    select: { id: true }
+  });
+  if (!review) {
+    throw new AppError_default(httpStatus16.NOT_FOUND, "Review not found");
+  }
+  const updatedReview = await prisma.review.update({
+    where: { id: reviewId },
+    data: {
+      ...payload.isApproved !== void 0 && { isApproved: payload.isApproved },
+      ...payload.isVerifiedPurchase !== void 0 && {
+        isVerifiedPurchase: payload.isVerifiedPurchase
+      }
+    },
+    select: adminReviewSelect
+  });
+  return updatedReview;
+};
+var replyReview = async (reviewId, payload, adminId) => {
+  const review = await prisma.review.findUnique({
+    where: { id: reviewId },
+    select: { id: true }
+  });
+  if (!review) {
+    throw new AppError_default(httpStatus16.NOT_FOUND, "Review not found");
+  }
+  const updatedReview = await prisma.review.update({
+    where: { id: reviewId },
+    data: payload.adminReply === null ? {
+      adminReply: null,
+      adminRepliedAt: null,
+      adminRepliedBy: null
+    } : {
+      adminReply: payload.adminReply,
+      adminRepliedAt: /* @__PURE__ */ new Date(),
+      adminRepliedBy: adminId
+    },
+    select: adminReviewSelect
+  });
+  return updatedReview;
+};
+var deleteReviewByAdmin = async (reviewId) => {
+  const review = await prisma.review.findUnique({
+    where: { id: reviewId },
+    select: { id: true }
+  });
+  if (!review) {
+    throw new AppError_default(httpStatus16.NOT_FOUND, "Review not found");
+  }
+  await prisma.review.delete({
+    where: { id: review.id }
+  });
+};
+var ReviewService = {
+  createReview,
+  getPublicReviewsByProduct,
+  getMyReviews,
+  updateMyReview,
+  deleteMyReview,
+  getAllReviews,
+  getReviewByIdForAdmin,
+  moderateReview,
+  replyReview,
+  deleteReviewByAdmin
+};
+
+// src/app/modules/review/review.controller.ts
 var getParamAsString5 = (value, key) => {
   if (!value || Array.isArray(value)) {
     throw new AppError_default(httpStatus17.BAD_REQUEST, `${key} is required`);
@@ -5887,6 +6348,81 @@ var getTrackingEvents2 = catchAsync(async (req, res) => {
     success: true,
     statusCode: httpStatus17.OK,
     message: "Tracking events retrieved successfully",
+var getAuthUserId = (req) => {
+  const userId = req.user?.id;
+  if (!userId) {
+    throw new AppError_default(httpStatus17.UNAUTHORIZED, "User not authenticated");
+  }
+  return userId;
+};
+var createReview2 = catchAsync(async (req, res) => {
+  const userId = getAuthUserId(req);
+  const payload = req.body;
+  const result = await ReviewService.createReview(userId, payload);
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus17.CREATED,
+    message: "Review submitted successfully",
+    data: result
+  });
+});
+var getPublicReviewsByProduct2 = catchAsync(async (req, res) => {
+  const productId = getParamAsString5(req.params.productId, "Product id");
+  const query = req.query;
+  const result = await ReviewService.getPublicReviewsByProduct(productId, query);
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus17.OK,
+    message: "Product reviews retrieved successfully",
+    data: {
+      reviews: result.data,
+      summary: result.summary
+    },
+    meta: result.meta
+  });
+});
+var getMyReviews2 = catchAsync(async (req, res) => {
+  const userId = getAuthUserId(req);
+  const query = req.query;
+  const result = await ReviewService.getMyReviews(userId, query);
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus17.OK,
+    message: "My reviews retrieved successfully",
+    data: result.data,
+    meta: result.meta
+  });
+});
+var updateMyReview2 = catchAsync(async (req, res) => {
+  const userId = getAuthUserId(req);
+  const reviewId = getParamAsString5(req.params.id, "Review id");
+  const payload = req.body;
+  const result = await ReviewService.updateMyReview(userId, reviewId, payload);
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus17.OK,
+    message: "Review updated successfully",
+    data: result
+  });
+});
+var deleteMyReview2 = catchAsync(async (req, res) => {
+  const userId = getAuthUserId(req);
+  const reviewId = getParamAsString5(req.params.id, "Review id");
+  await ReviewService.deleteMyReview(userId, reviewId);
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus17.OK,
+    message: "Review deleted successfully",
+    data: null
+  });
+});
+var getAllReviews2 = catchAsync(async (req, res) => {
+  const query = req.query;
+  const result = await ReviewService.getAllReviews(query);
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus17.OK,
+    message: "All reviews retrieved successfully",
     data: result.data,
     meta: result.meta
   });
@@ -5985,6 +6521,156 @@ router6.post(
   TrackingControllers.retryTrackingEvent
 );
 var TrackingRoutes = router6;
+var getReviewByIdForAdmin2 = catchAsync(async (req, res) => {
+  const reviewId = getParamAsString5(req.params.id, "Review id");
+  const result = await ReviewService.getReviewByIdForAdmin(reviewId);
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus17.OK,
+    message: "Review retrieved successfully",
+    data: result
+  });
+});
+var moderateReview2 = catchAsync(async (req, res) => {
+  const reviewId = getParamAsString5(req.params.id, "Review id");
+  const payload = req.body;
+  const result = await ReviewService.moderateReview(reviewId, payload);
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus17.OK,
+    message: "Review moderated successfully",
+    data: result
+  });
+});
+var replyReview2 = catchAsync(async (req, res) => {
+  const reviewId = getParamAsString5(req.params.id, "Review id");
+  const adminId = getAuthUserId(req);
+  const payload = req.body;
+  const result = await ReviewService.replyReview(reviewId, payload, adminId);
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus17.OK,
+    message: "Review reply updated successfully",
+    data: result
+  });
+});
+var deleteReviewByAdmin2 = catchAsync(async (req, res) => {
+  const reviewId = getParamAsString5(req.params.id, "Review id");
+  await ReviewService.deleteReviewByAdmin(reviewId);
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus17.OK,
+    message: "Review deleted successfully",
+    data: null
+  });
+});
+var ReviewControllers = {
+  createReview: createReview2,
+  getPublicReviewsByProduct: getPublicReviewsByProduct2,
+  getMyReviews: getMyReviews2,
+  updateMyReview: updateMyReview2,
+  deleteMyReview: deleteMyReview2,
+  getAllReviews: getAllReviews2,
+  getReviewByIdForAdmin: getReviewByIdForAdmin2,
+  moderateReview: moderateReview2,
+  replyReview: replyReview2,
+  deleteReviewByAdmin: deleteReviewByAdmin2
+};
+
+// src/app/modules/review/review.validation.ts
+import { z as z6 } from "zod";
+var optionalText3 = (max) => z6.string().trim().min(1, { message: "Value cannot be empty" }).max(max, { message: `Value cannot exceed ${max} characters` }).optional();
+var ratingSchema = z6.coerce.number().int({ message: "Rating must be an integer" }).min(1, { message: "Rating must be between 1 and 5" }).max(5, { message: "Rating must be between 1 and 5" });
+var createReviewZodSchema = z6.object({
+  productId: z6.string().uuid({ message: "Product id must be a valid UUID" }),
+  rating: ratingSchema,
+  title: optionalText3(255),
+  comment: optionalText3(2e3)
+});
+var updateMyReviewZodSchema = z6.object({
+  rating: ratingSchema.optional(),
+  title: optionalText3(255),
+  comment: optionalText3(2e3)
+}).refine((payload) => Object.keys(payload).length > 0, {
+  message: "At least one field is required for update"
+});
+var moderateReviewZodSchema = z6.object({
+  isApproved: z6.coerce.boolean().optional(),
+  isVerifiedPurchase: z6.coerce.boolean().optional()
+}).refine((payload) => Object.keys(payload).length > 0, {
+  message: "At least one moderation field is required"
+});
+var adminReplyValueSchema = z6.preprocess(
+  (value) => {
+    if (value === null) {
+      return null;
+    }
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return null;
+      }
+      return trimmed;
+    }
+    return value;
+  },
+  z6.string().max(2e3, { message: "Admin reply cannot exceed 2000 characters" }).nullable()
+);
+var replyReviewZodSchema = z6.object({
+  adminReply: adminReplyValueSchema
+});
+
+// src/app/modules/review/review.route.ts
+var router6 = Router6();
+router6.get("/product/:productId", ReviewControllers.getPublicReviewsByProduct);
+router6.post(
+  "/",
+  checkAuth("USER" /* USER */),
+  validateRequest(createReviewZodSchema),
+  ReviewControllers.createReview
+);
+router6.get(
+  "/my-reviews",
+  checkAuth("USER" /* USER */),
+  ReviewControllers.getMyReviews
+);
+router6.patch(
+  "/:id",
+  checkAuth("USER" /* USER */),
+  validateRequest(updateMyReviewZodSchema),
+  ReviewControllers.updateMyReview
+);
+router6.put(
+  "/:id",
+  checkAuth("USER" /* USER */),
+  validateRequest(updateMyReviewZodSchema),
+  ReviewControllers.updateMyReview
+);
+router6.delete(
+  "/:id",
+  checkAuth("USER" /* USER */),
+  ReviewControllers.deleteMyReview
+);
+router6.get("/", checkAuth("ADMIN" /* ADMIN */), ReviewControllers.getAllReviews);
+router6.get("/:id/admin", checkAuth("ADMIN" /* ADMIN */), ReviewControllers.getReviewByIdForAdmin);
+router6.patch(
+  "/:id/moderate",
+  checkAuth("ADMIN" /* ADMIN */),
+  validateRequest(moderateReviewZodSchema),
+  ReviewControllers.moderateReview
+);
+router6.patch(
+  "/:id/reply",
+  checkAuth("ADMIN" /* ADMIN */),
+  validateRequest(replyReviewZodSchema),
+  ReviewControllers.replyReview
+);
+router6.delete(
+  "/:id/admin",
+  checkAuth("ADMIN" /* ADMIN */),
+  ReviewControllers.deleteReviewByAdmin
+);
+var ReviewRoutes = router6;
 
 // src/app/routes/index.ts
 var router7 = Router7();
@@ -6012,6 +6698,8 @@ var moduleRoutes = [
   {
     path: "/tracking",
     route: TrackingRoutes
+    path: "/review",
+    route: ReviewRoutes
   }
 ];
 moduleRoutes.forEach((route) => {

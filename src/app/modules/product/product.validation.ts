@@ -65,7 +65,7 @@ const variantOptionInputZodSchema = z
     barcode: optionalText(100),
     price: z.coerce
       .number()
-      .min(0, { message: "Price cannot be negative" }),
+      .min(0, { message: "Variant additional price cannot be negative" }),
     compareAtPrice: z.coerce
       .number()
       .min(0, { message: "Compare at price cannot be negative" })
@@ -159,7 +159,7 @@ export const createProductZodSchema = z
     categoryId: nullableUuidSchema,
     price: z.coerce
       .number()
-      .min(0, { message: "Price cannot be negative" })
+      .min(0, { message: "Base product price cannot be negative" })
       .optional(),
     compareAtPrice: z.coerce
       .number()
@@ -200,6 +200,15 @@ export const createProductZodSchema = z
         code: z.ZodIssueCode.custom,
         path: ["variants"],
         message: "Variants are required when hasVariants is true",
+      });
+    }
+
+    if (hasVariants && payload.price === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["price"],
+        message:
+          "Base product price is required when hasVariants is true",
       });
     }
 
@@ -248,7 +257,7 @@ export const updateProductZodSchema = z
     categoryId: nullableUuidSchema,
     price: z.coerce
       .number()
-      .min(0, { message: "Price cannot be negative" })
+      .min(0, { message: "Base product price cannot be negative" })
       .optional(),
     compareAtPrice: z.coerce
       .number()
