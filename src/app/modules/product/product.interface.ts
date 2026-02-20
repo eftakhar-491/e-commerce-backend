@@ -1,7 +1,7 @@
 export interface IVariantOptionInput {
   sku: string;
   barcode?: string;
-  price: number;
+  price: number; // additional price, added with base product price
   compareAtPrice?: number;
   costPrice?: number;
   stock?: number;

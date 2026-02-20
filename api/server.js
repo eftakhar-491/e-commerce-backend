@@ -3074,11 +3074,23 @@ var createVariantTree = async (tx, productId, variants) => {
 var createProduct = async (payload) => {
   const hasVariants = payload.hasVariants ?? false;
   const variants = hasVariants ? payload.variants ?? [] : [];
-  const productPrice = hasVariants ? null : payload.price ?? null;
+  const productPrice = payload.price ?? null;
   if (hasVariants && !variants.length) {
     throw new AppError_default(
       httpStatus7.BAD_REQUEST,
       "Variants are required when hasVariants is true"
+    );
+  }
+  if (!hasVariants && payload.variants?.length) {
+    throw new AppError_default(
+      httpStatus7.BAD_REQUEST,
+      "Set hasVariants to true to submit variants"
+    );
+  }
+  if (hasVariants && productPrice === null) {
+    throw new AppError_default(
+      httpStatus7.BAD_REQUEST,
+      "Base product price is required when hasVariants is true"
     );
   }
   await Promise.all([
@@ -3173,7 +3185,8 @@ var updateProduct = async (productId, payload) => {
     where: { id: productId },
     select: {
       id: true,
-      hasVariants: true
+      hasVariants: true,
+      price: true
     }
   });
   if (!existingProduct) {
@@ -3203,6 +3216,7 @@ var updateProduct = async (productId, payload) => {
   const updatedProduct = await prisma.$transaction(async (tx) => {
     const updateData = {};
     const nextHasVariants = payload.hasVariants !== void 0 ? payload.hasVariants : payload.variants !== void 0 ? payload.variants.length > 0 : existingProduct.hasVariants;
+    const nextBasePrice = payload.price !== void 0 ? payload.price : existingProduct.price;
     if (payload.title !== void 0) {
       updateData.title = payload.title;
     }
@@ -3221,10 +3235,14 @@ var updateProduct = async (productId, payload) => {
     if (payload.categoryId !== void 0) {
       updateData.categoryId = payload.categoryId;
     }
-    if (nextHasVariants) {
-      updateData.price = null;
-    } else if (payload.price !== void 0) {
+    if (payload.price !== void 0) {
       updateData.price = payload.price;
+    }
+    if (nextHasVariants && nextBasePrice === null) {
+      throw new AppError_default(
+        httpStatus7.BAD_REQUEST,
+        "Base product price is required when hasVariants is true"
+      );
     }
     if (payload.compareAtPrice !== void 0) {
       updateData.compareAtPrice = payload.compareAtPrice;
@@ -3462,7 +3480,7 @@ var imageIdsZodSchema = z3.array(z3.string().uuid({ message: "Each image id must
 var variantOptionInputZodSchema = z3.object({
   sku: z3.string().trim().min(1, { message: "Option SKU is required" }).max(100, { message: "Option SKU cannot exceed 100 characters" }),
   barcode: optionalText(100),
-  price: z3.coerce.number().min(0, { message: "Price cannot be negative" }),
+  price: z3.coerce.number().min(0, { message: "Variant additional price cannot be negative" }),
   compareAtPrice: z3.coerce.number().min(0, { message: "Compare at price cannot be negative" }).optional(),
   costPrice: z3.coerce.number().min(0, { message: "Cost price cannot be negative" }).optional(),
   stock: z3.coerce.number().int({ message: "Stock must be an integer" }).min(0, { message: "Stock cannot be negative" }).optional(),
@@ -3512,7 +3530,7 @@ var createProductZodSchema = z3.object({
   shortDesc: optionalText(500),
   brand: optionalText(100),
   categoryId: nullableUuidSchema,
-  price: z3.coerce.number().min(0, { message: "Price cannot be negative" }).optional(),
+  price: z3.coerce.number().min(0, { message: "Base product price cannot be negative" }).optional(),
   compareAtPrice: z3.coerce.number().min(0, { message: "Compare at price cannot be negative" }).optional(),
   costPrice: z3.coerce.number().min(0, { message: "Cost price cannot be negative" }).optional(),
   sku: optionalText(100),
@@ -3536,6 +3554,13 @@ var createProductZodSchema = z3.object({
       code: z3.ZodIssueCode.custom,
       path: ["variants"],
       message: "Variants are required when hasVariants is true"
+    });
+  }
+  if (hasVariants && payload.price === void 0) {
+    ctx.addIssue({
+      code: z3.ZodIssueCode.custom,
+      path: ["price"],
+      message: "Base product price is required when hasVariants is true"
     });
   }
   if (!hasVariants && payload.variants?.length) {
@@ -3565,7 +3590,7 @@ var updateProductZodSchema = z3.object({
   shortDesc: optionalText(500),
   brand: optionalText(100),
   categoryId: nullableUuidSchema,
-  price: z3.coerce.number().min(0, { message: "Price cannot be negative" }).optional(),
+  price: z3.coerce.number().min(0, { message: "Base product price cannot be negative" }).optional(),
   compareAtPrice: z3.coerce.number().min(0, { message: "Compare at price cannot be negative" }).optional(),
   costPrice: z3.coerce.number().min(0, { message: "Cost price cannot be negative" }).optional(),
   sku: optionalText(100),
