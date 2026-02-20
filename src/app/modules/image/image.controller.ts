@@ -28,6 +28,7 @@ const createImages = catchAsync(async (req: Request, res: Response) => {
 
   const createPayload: ICreateMediaPayload = {
     ...(payload.productId !== undefined && { productId: payload.productId }),
+    ...(payload.variantId !== undefined && { variantId: payload.variantId }),
     ...(payload.variantOptionId !== undefined && {
       variantOptionId: payload.variantOptionId,
     }),

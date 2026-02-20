@@ -1,75 +1,89 @@
-// import { catchAsync } from "../../utils/catchAsync";
+import type { Request, Response } from "express";
+import httpStatus from "http-status-codes";
+import AppError from "../../helper/AppError";
+import { catchAsync } from "../../utils/catchAsync";
+import { sendResponse } from "../../utils/sendResponse";
+import type {
+  ICreateProductPayload,
+  IProductQuery,
+  IUpdateProductPayload,
+} from "./product.interface";
+import { ProductService } from "./product.service";
 
-// import httpStatus from "http-status-codes";
-// import { ProductServices } from "./product.service";
-// import { sendResponse } from "../../utils/sendResponse";
-// import AppError from "../../helper/AppError";
+const getParamAsString = (value: string | string[] | undefined, key: string) => {
+  if (!value || Array.isArray(value)) {
+    throw new AppError(httpStatus.BAD_REQUEST, `${key} is required`);
+  }
 
-// const createProduct = catchAsync(async (req, res) => {
-//   const payload = req.body;
-//   const result = await ProductServices.createProduct(payload);
+  return value;
+};
 
-//   sendResponse(res, {
-//     statusCode: httpStatus.CREATED,
-//     success: true,
-//     message: "Product created successfully",
-//     data: result,
-//   });
-// });
+const createProduct = catchAsync(async (req: Request, res: Response) => {
+  const payload = req.body as ICreateProductPayload;
+  const result = await ProductService.createProduct(payload);
 
-// export const updateProduct = catchAsync(async (req, res) => {
-//   const { id } = req.params as { id: string };
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.CREATED,
+    message: "Product created successfully",
+    data: result,
+  });
+});
 
-//   const result = await ProductServices.updateProduct(id, req.body);
+const getProducts = catchAsync(async (req: Request, res: Response) => {
+  const query = req.query as IProductQuery;
+  const result = await ProductService.getProducts(query);
 
-//   sendResponse(res, {
-//     statusCode: httpStatus.OK,
-//     success: true,
-//     message: "Product updated successfully",
-//     data: result,
-//   });
-// });
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Products retrieved successfully",
+    data: result.data,
+    meta: result.meta,
+  });
+});
 
-// // const updateProduct = catchAsync(async (req, res) => {
-// //   const productId = req.params.id as string;
-// //   const payload = req.body;
-// //   const result = await ProductServices.updateProduct(productId, payload);
-// //   sendResponse(res, {
-// //     statusCode: httpStatus.OK,
-// //     success: true,
-// //     message: "Product updated successfully",
-// //     data: result,
-// //   });
-// // });
+const getProductById = catchAsync(async (req: Request, res: Response) => {
+  const productId = getParamAsString(req.params.id, "Product id");
+  const result = await ProductService.getProductById(productId);
 
-// const getAllProducts = catchAsync(async (req, res) => {
-//   const query = req.query as Record<string, string>;
-//   const result = await ProductServices.getAllProducts(query);
-//   sendResponse(res, {
-//     statusCode: httpStatus.OK,
-//     success: true,
-//     message: "Products retrieved successfully",
-//     data: result,
-//   });
-// });
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Product retrieved successfully",
+    data: result,
+  });
+});
 
-// const getProductById = catchAsync(async (req, res) => {
-//   const productId = req.params.id as string;
-//   const result = await ProductServices.getProductById(productId);
-//   sendResponse(res, {
-//     statusCode: httpStatus.OK,
-//     success: true,
-//     message: "Product retrieved successfully",
-//     data: result,
-//   });
-// });
+const updateProduct = catchAsync(async (req: Request, res: Response) => {
+  const productId = getParamAsString(req.params.id, "Product id");
+  const payload = req.body as IUpdateProductPayload;
+  const result = await ProductService.updateProduct(productId, payload);
 
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Product updated successfully",
+    data: result,
+  });
+});
 
+const deleteProduct = catchAsync(async (req: Request, res: Response) => {
+  const productId = getParamAsString(req.params.id, "Product id");
+  await ProductService.deleteProduct(productId);
 
-// export const ProductController = {
-//   createProduct,
-//   updateProduct,
-//   getAllProducts,
-//   getProductById,
-  
-// };
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Product deleted successfully",
+    data: null,
+  });
+});
+
+export const ProductControllers = {
+  createProduct,
+  getProducts,
+  getProductById,
+  updateProduct,
+  deleteProduct,
+};

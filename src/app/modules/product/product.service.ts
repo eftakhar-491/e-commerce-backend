@@ -1,1422 +1,926 @@
-// import { v4 as uuid } from "uuid";
-// import AppError from "../../helper/AppError";
-// import { prisma } from "../../lib/prisma";
-
-// import httpStatus from "http-status-codes";
-// import { QueryBuilder } from "../../utils/QueryBuilder";
-// const searchableFields = ["title", "slug", "brand"];
-// // const createProduct = async (payload: any) => {
-// //   const {
-// //     title,
-// //     slug,
-// //     description,
-// //     shortDesc,
-// //     categoryId,
-// //     brand,
-// //     hasVariants,
-// //     isActive,
-// //     isFeatured,
-// //     images,
-// //     variants,
-// //   } = payload;
-
-// //   // 🔒 Check category exists
-// //   const category = await prisma.category.findUnique({
-// //     where: { id: categoryId },
-// //   });
-
-// //   if (!category) {
-// //     throw new AppError(httpStatus.NOT_FOUND, "Category not found");
-// //   }
-
-// //   // 🔒 Check unique slug
-// //   const existing = await prisma.product.findUnique({
-// //     where: { slug },
-// //   });
-
-// //   if (existing) {
-// //     throw new AppError(httpStatus.CONFLICT, "Product slug already exists");
-// //   }
-
-// //   // 🔁 Transaction (IMPORTANT)
-// //   return prisma.$transaction(async (tx) => {
-// //     // 1️⃣ Create Product
-// //     const product = await tx.product.create({
-// //       data: {
-// //         title,
-// //         slug,
-// //         description,
-// //         shortDesc,
-// //         categoryId,
-// //         brand,
-// //         hasVariants,
-// //         isActive,
-// //         isFeatured,
-// //       },
-// //     });
-
-// //     // 2️⃣ Product Images
-// //     if (images?.length) {
-// //       await tx.productImage.createMany({
-// //         data: images.map((img: any) => ({
-// //           ...img,
-// //           productId: product.id,
-// //         })),
-// //       });
-// //     }
-
-// //     // 3️⃣ Variants & Options
-// //     if (hasVariants && variants?.length) {
-// //       for (const variant of variants) {
-// //         const createdVariant = await tx.productVariant.create({
-// //           data: {
-// //             productId: product.id,
-// //             title: variant.title,
-// //             isActive: variant.isActive,
-// //           },
-// //         });
-
-// //         for (const option of variant.options) {
-// //           const createdOption = await tx.variantOption.create({
-// //             data: {
-// //               productVariantId: createdVariant.id,
-// //               sku: option.sku,
-// //               stock: option.stock,
-// //               price: option.price,
-// //               comparePrice: option.comparePrice,
-// //               costPrice: option.costPrice,
-// //               name: option.name,
-// //               value: option.value,
-// //               isActive: option.isActive,
-// //             },
-// //           });
-
-// //           // Option images
-// //           if (option.images?.length) {
-// //             await tx.productImage.createMany({
-// //               data: option.images.map((img: any) => ({
-// //                 ...img,
-// //                 variantOptionId: createdOption.id,
-// //               })),
-// //             });
-// //           }
-// //         }
-// //       }
-// //     }
-
-// //     return product;
-// //   });
-// // };
-
-// // const createProduct = async (payload: any) => {
-// //   const {
-// //     title,
-// //     slug,
-// //     description,
-// //     shortDesc,
-// //     categoryId,
-// //     brand,
-// //     hasVariants,
-// //     isActive,
-// //     isFeatured,
-// //     images = [],
-// //     variants: inputVariants = [],
-// //   } = payload;
-// //   const DEFAULTPRODUCTVARIANT = {
-// //     title: "Default",
-// //     isActive: true,
-// //     options: [
-// //       {
-// //         sku: uuid(),
-// //         stock: inputVariants[0]?.options[0]?.stock || 0,
-// //         price: inputVariants[0]?.options[0]?.price || 0,
-// //         comparePrice: inputVariants[0]?.options[0]?.comparePrice || 0,
-// //         costPrice: inputVariants[0]?.options[0]?.costPrice || 0,
-// //         name: "Default Option",
-// //         value: "Default Value",
-// //         isActive: true,
-// //         images: [],
-// //       },
-// //     ],
-// //     images: [],
-// //   };
-// //   const variants =
-// //     !hasVariants || inputVariants.length === 0
-// //       ? [DEFAULTPRODUCTVARIANT]
-// //       : inputVariants;
-
-// //   const product = await prisma.$transaction(async (tx) => {
-// //     /* ----------------------------------------------------
-// //        1️⃣ VALIDATIONS (minimal queries)
-// //     ---------------------------------------------------- */
-
-// //     const [category, existingProduct] = await Promise.all([
-// //       tx.category.findUnique({
-// //         where: { id: categoryId },
-// //         select: { id: true },
-// //       }),
-// //       tx.product.findUnique({
-// //         where: { slug },
-// //         select: { id: true },
-// //       }),
-// //     ]);
-
-// //     if (!category) {
-// //       throw new AppError(httpStatus.NOT_FOUND, "Category not found");
-// //     }
-
-// //     if (existingProduct) {
-// //       throw new AppError(httpStatus.CONFLICT, "Product slug already exists");
-// //     }
-
-// //     /* ----------------------------------------------------
-// //        2️⃣ CREATE PRODUCT
-// //     ---------------------------------------------------- */
-
-// //     const product = await tx.product.create({
-// //       data: {
-// //         title,
-// //         slug,
-// //         description,
-// //         shortDesc,
-// //         categoryId,
-// //         brand,
-// //         hasVariants,
-// //         isActive,
-// //         isFeatured,
-// //       },
-// //     });
-
-// //     /* ----------------------------------------------------
-// //        3️⃣ PRODUCT IMAGES (BULK)
-// //     ---------------------------------------------------- */
-
-// //     if (images.length) {
-// //       await tx.productImage.createMany({
-// //         data: images.map((img: any) => ({
-// //           src: img.path || img.src || "",
-// //           altText: img.altText || "",
-// //           publicId: img.filename || img.publicId || "",
-// //           isPrimary: img.isPrimary || img.isPrimary === "true",
-// //           productId: product.id,
-// //         })),
-// //       });
-// //     }
-
-// //     /* ----------------------------------------------------
-// //        4️⃣ VARIANTS + OPTIONS (OPTIMIZED)
-// //     ---------------------------------------------------- */
-
-// //     if (!hasVariants || !variants.length) {
-// //       return product;
-// //     }
-
-// //     /* ---- 4.1 Create Variants (parallel, IDs needed) ---- */
-
-// //     const createdVariants = await Promise.all(
-// //       variants.map((variant: any) =>
-// //         tx.productVariant.create({
-// //           data: {
-// //             productId: product.id,
-// //             title: variant.title,
-// //             isActive: variant.isActive === "true",
-// //           },
-// //         }),
-// //       ),
-// //     );
-
-// //     /* ---- 4.2 Prepare Variant Options (bulk) ---- */
-
-// //     const optionPayload: any[] = [];
-
-// //     variants.forEach((variant: any, vIndex: number) => {
-// //       const variantId = createdVariants[vIndex].id;
-
-// //       variant.options.forEach((option: any) => {
-// //         optionPayload.push({
-// //           productVariantId: variantId,
-// //           sku: option.sku,
-// //           stock: option.stock,
-// //           price: option.price,
-// //           comparePrice: option.comparePrice,
-// //           costPrice: option.costPrice,
-// //           name: option.name,
-// //           value: option.value,
-// //           isActive: option.isActive === "true",
-// //         });
-// //       });
-// //     });
-
-// //     if (optionPayload.length) {
-// //       await tx.variantOption.createMany({
-// //         data: optionPayload,
-// //       });
-// //     }
-
-// //     /* ---- 4.3 Fetch Options ONCE (needed for images) ---- */
-
-// //     const createdOptions = await tx.variantOption.findMany({
-// //       where: {
-// //         productVariantId: {
-// //           in: createdVariants.map((v) => v.id),
-// //         },
-// //       },
-// //       select: {
-// //         id: true,
-// //         sku: true,
-// //         productVariantId: true,
-// //       },
-// //     });
-
-// //     /* ---- 4.4 Prepare Option Images (bulk) ---- */
-
-// //     const optionImagePayload: any[] = [];
-
-// //     variants.forEach((variant: any, vIndex: number) => {
-// //       const variantId = createdVariants[vIndex].id;
-
-// //       variant.options.forEach((option: any) => {
-// //         if (!option.images?.length) return;
-
-// //         const dbOption = createdOptions.find(
-// //           (o) => o.productVariantId === variantId && o.sku === option.sku,
-// //         );
-
-// //         if (!dbOption) return;
-
-// //         option.images.forEach((img: any) => {
-// //           optionImagePayload.push({
-// //             ...img,
-// //             variantOptionId: dbOption.id,
-// //           });
-// //         });
-// //       });
-// //     });
-
-// //     if (optionImagePayload.length) {
-// //       await tx.productImage.createMany({
-// //         data: optionImagePayload,
-// //       });
-// //     }
-
-// //     /* ----------------------------------------------------
-// //        5️⃣ DONE
-// //     ---------------------------------------------------- */
-
-// //     return product;
-// //   });
-
-// //   return await prisma.product.findUnique({
-// //     where: { id: product.id },
-
-// //     select: {
-// //       id: true,
-// //       title: true,
-// //       slug: true,
-// //       description: true,
-// //       shortDesc: true,
-// //       categoryId: true,
-// //       brand: true,
-// //       hasVariants: true,
-// //       isActive: true,
-// //       isFeatured: true,
-// //       createdAt: true,
-// //       updatedAt: true,
-
-// //       images: {
-// //         select: {
-// //           id: true,
-// //           src: true,
-// //           altText: true,
-// //           isPrimary: true,
-// //         },
-// //       },
-
-// //       variants: {
-// //         select: {
-// //           id: true,
-// //           title: true,
-// //           isActive: true,
-
-// //           options: {
-// //             select: {
-// //               id: true,
-// //               sku: true,
-// //               stock: true,
-// //               price: true,
-// //               comparePrice: true,
-// //               costPrice: true,
-// //               name: true,
-// //               value: true,
-// //               isActive: true,
-
-// //               images: {
-// //                 select: {
-// //                   id: true,
-// //                   src: true,
-// //                   altText: true,
-// //                   isPrimary: true,
-// //                 },
-// //               },
-// //             },
-// //           },
-// //         },
-// //       },
-// //     },
-// //   });
-// // };
-
-// // const createProduct = async (payload: any) => {
-// //   const {
-// //     title,
-// //     slug,
-// //     description,
-// //     shortDesc,
-// //     categoryId,
-// //     brand,
-// //     hasVariants,
-// //     isActive,
-// //     isFeatured,
-// //     images = [], // 🔥 uploaded image IDs
-// //     variants: inputVariants = [],
-// //   } = payload;
-
-// //   const DEFAULTPRODUCTVARIANT = {
-// //     title: "Default",
-// //     isActive: true,
-// //     options: [
-// //       {
-// //         sku: uuid(),
-// //         stock: inputVariants[0]?.options?.[0]?.stock || 0,
-// //         price: inputVariants[0]?.options?.[0]?.price || 0,
-// //         comparePrice: inputVariants[0]?.options?.[0]?.comparePrice || 0,
-// //         costPrice: inputVariants[0]?.options?.[0]?.costPrice || 0,
-// //         name: "Default Option",
-// //         value: "Default Value",
-// //         isActive: true,
-// //         images: [],
-// //       },
-// //     ],
-// //     images: [],
-// //   };
-
-// //   const variants =
-// //     !hasVariants || inputVariants.length === 0
-// //       ? [DEFAULTPRODUCTVARIANT]
-// //       : inputVariants;
-
-// //   return prisma.$transaction(async (tx) => {
-// //     /* ----------------------------------------------------
-// //        1️⃣ VALIDATION
-// //     ---------------------------------------------------- */
-
-// //     const [category, existingProduct] = await Promise.all([
-// //       tx.category.findUnique({
-// //         where: { id: categoryId },
-// //         select: { id: true },
-// //       }),
-// //       tx.product.findUnique({
-// //         where: { slug },
-// //         select: { id: true },
-// //       }),
-// //     ]);
-
-// //     if (!category && categoryId) {
-// //       throw new AppError(httpStatus.NOT_FOUND, "Category not found");
-// //     }
-
-// //     if (existingProduct) {
-// //       throw new AppError(httpStatus.CONFLICT, "Product slug already exists");
-// //     }
-
-// //     /* ----------------------------------------------------
-// //        2️⃣ CREATE PRODUCT
-// //     ---------------------------------------------------- */
-
-// //     const product = await tx.product.create({
-// //       data: {
-// //         title,
-// //         slug,
-// //         description,
-// //         shortDesc,
-// //         categoryId,
-// //         brand,
-// //         hasVariants,
-// //         isActive,
-// //         isFeatured,
-// //       },
-// //     });
-
-// //     /* ----------------------------------------------------
-// //        3️⃣ ATTACH EXISTING IMAGES TO PRODUCT
-// //     ---------------------------------------------------- */
-
-// //     if (images.length) {
-// //       const imageIds = images.map((img: any) => img.id).filter(Boolean);
-// //       await tx.productImage.updateMany({
-// //         where: {
-// //           id: { in: imageIds },
-// //           productId: null, // safety
-// //         },
-// //         data: {
-// //           productId: product.id,
-// //         },
-// //       });
-// //     }
-
-// //     /* ----------------------------------------------------
-// //        4️⃣ VARIANTS & OPTIONS
-// //     ---------------------------------------------------- */
-
-// //     if (!hasVariants || !variants.length) {
-// //       return product;
-// //     }
-
-// //     const createdVariants = await Promise.all(
-// //       variants.map((variant: any) =>
-// //         tx.productVariant.create({
-// //           data: {
-// //             productId: product.id,
-// //             title: variant.title,
-// //             isActive: variant.isActive === true || variant.isActive === "true",
-// //           },
-// //         }),
-// //       ),
-// //     );
-
-// //     const optionPayload: any[] = [];
-
-// //     variants.forEach((variant: any, vIndex: number) => {
-// //       const variantId = createdVariants[vIndex].id;
-
-// //       variant.options.forEach((option: any) => {
-// //         optionPayload.push({
-// //           productVariantId: variantId,
-// //           sku: option.sku || uuid(),
-// //           stock: option.stock,
-// //           price: option.price,
-// //           comparePrice: option.comparePrice,
-// //           costPrice: option.costPrice,
-// //           name: option.name,
-// //           value: option.value,
-// //           isActive: option.isActive === true || option.isActive === "true",
-// //         });
-// //       });
-// //     });
-
-// //     if (optionPayload.length) {
-// //       await tx.variantOption.createMany({ data: optionPayload });
-// //     }
-
-// //     /* ----------------------------------------------------
-// //        5️⃣ RETURN FULL PRODUCT
-// //     ---------------------------------------------------- */
-
-// //     return tx.product.findUnique({
-// //       where: { id: product.id },
-// //       include: {
-// //         images: true,
-// //         variants: {
-// //           include: {
-// //             options: true,
-// //           },
-// //         },
-// //       },
-// //     });
-// //   });
-// // };
-
-// // const createProduct = async (payload: any) => {
-// //   const {
-// //     title,
-// //     slug,
-// //     description,
-// //     shortDesc,
-// //     categoryId,
-// //     brand,
-// //     hasVariants,
-// //     isActive,
-// //     isFeatured,
-// //     images = [], // product images [{ id }]
-// //     variants: inputVariants = [],
-// //   } = payload;
-
-// //   const DEFAULTPRODUCTVARIANT = {
-// //     title: "Default",
-// //     isActive: true,
-// //     options: [
-// //       {
-// //         sku: uuid(),
-// //         stock: inputVariants[0]?.options?.[0]?.stock || 0,
-// //         price: inputVariants[0]?.options?.[0]?.price || 0,
-// //         comparePrice: inputVariants[0]?.options?.[0]?.comparePrice || 0,
-// //         costPrice: inputVariants[0]?.options?.[0]?.costPrice || 0,
-// //         name: "Default Option",
-// //         value: "Default Value",
-// //         isActive: true,
-// //         images: [],
-// //       },
-// //     ],
-// //   };
-
-// //   const variants =
-// //     !hasVariants || inputVariants.length === 0
-// //       ? [DEFAULTPRODUCTVARIANT]
-// //       : inputVariants;
-
-// //   return prisma.$transaction(async (tx) => {
-// //     /* ----------------------------------------------------
-// //        1️⃣ VALIDATION
-// //     ---------------------------------------------------- */
-
-// //     const [category, existingProduct] = await Promise.all([
-// //       categoryId
-// //         ? tx.category.findUnique({
-// //             where: { id: categoryId },
-// //             select: { id: true },
-// //           })
-// //         : null,
-// //       tx.product.findUnique({
-// //         where: { slug },
-// //         select: { id: true },
-// //       }),
-// //     ]);
-
-// //     if (categoryId && !category) {
-// //       throw new AppError(httpStatus.NOT_FOUND, "Category not found");
-// //     }
-
-// //     if (existingProduct) {
-// //       throw new AppError(httpStatus.CONFLICT, "Product slug already exists");
-// //     }
-
-// //     /* ----------------------------------------------------
-// //        2️⃣ CREATE PRODUCT
-// //     ---------------------------------------------------- */
-
-// //     const product = await tx.product.create({
-// //       data: {
-// //         title,
-// //         slug,
-// //         description,
-// //         shortDesc,
-// //         categoryId,
-// //         brand,
-// //         hasVariants,
-// //         isActive,
-// //         isFeatured,
-// //       },
-// //     });
-
-// //     /* ----------------------------------------------------
-// //        3️⃣ ATTACH PRODUCT IMAGES
-// //     ---------------------------------------------------- */
-
-// //     if (images.length) {
-// //       const imageIds = images.map((img: any) => img.id).filter(Boolean);
-
-// //       if (imageIds.length) {
-// //         await tx.productImage.updateMany({
-// //           where: {
-// //             id: { in: imageIds },
-// //             productId: null,
-// //           },
-// //           data: {
-// //             productId: product.id,
-// //           },
-// //         });
-// //       }
-// //     }
-
-// //     /* ----------------------------------------------------
-// //        4️⃣ VARIANTS
-// //     ---------------------------------------------------- */
-
-// //     if (!hasVariants || !variants.length) {
-// //       return product;
-// //     }
-
-// //     const createdVariants = await Promise.all(
-// //       variants.map((variant: any) =>
-// //         tx.productVariant.create({
-// //           data: {
-// //             productId: product.id,
-// //             title: variant.title,
-// //             isActive: variant.isActive === true || variant.isActive === "true",
-// //           },
-// //         }),
-// //       ),
-// //     );
-
-// //     /* ----------------------------------------------------
-// //        5️⃣ VARIANT OPTIONS
-// //     ---------------------------------------------------- */
-
-// //     const optionPayload: any[] = [];
-
-// //     variants.forEach((variant: any, vIndex: number) => {
-// //       const variantId = createdVariants[vIndex].id;
-
-// //       variant.options.forEach((option: any) => {
-// //         optionPayload.push({
-// //           productVariantId: variantId,
-// //           sku: option.sku || uuid(),
-// //           stock: option.stock,
-// //           price: option.price,
-// //           comparePrice: option.comparePrice,
-// //           costPrice: option.costPrice,
-// //           name: option.name,
-// //           value: option.value,
-// //           isActive: option.isActive === true || option.isActive === "true",
-// //         });
-// //       });
-// //     });
-
-// //     if (optionPayload.length) {
-// //       await tx.variantOption.createMany({ data: optionPayload });
-// //     }
-
-// //     /* ----------------------------------------------------
-// //        6️⃣ ATTACH VARIANT OPTION IMAGES
-// //     ---------------------------------------------------- */
-
-// //     // Fetch created options once
-// //     const createdOptions = await tx.variantOption.findMany({
-// //       where: {
-// //         productVariantId: {
-// //           in: createdVariants.map((v) => v.id),
-// //         },
-// //       },
-// //       select: {
-// //         id: true,
-// //         sku: true,
-// //       },
-// //     });
-
-// //     // Map SKU -> optionId
-// //     const optionMap = new Map(createdOptions.map((o) => [o.sku, o.id]));
-
-// //     for (const variant of variants) {
-// //       for (const option of variant.options) {
-// //         if (!option.images?.length) continue;
-
-// //         const optionId = optionMap.get(option.sku);
-// //         if (!optionId) continue;
-
-// //         const imageIds = option.images
-// //           .map((img: any) => img.id)
-// //           .filter(Boolean);
-
-// //         if (!imageIds.length) continue;
-
-// //         await tx.productImage.updateMany({
-// //           where: {
-// //             id: { in: imageIds },
-// //             variantOptionId: null,
-// //           },
-// //           data: {
-// //             variantOptionId: optionId,
-// //           },
-// //         });
-// //       }
-// //     }
-
-// //     /* ----------------------------------------------------
-// //        7️⃣ RETURN FULL PRODUCT
-// //     ---------------------------------------------------- */
-
-// //     return tx.product.findUnique({
-// //       where: { id: product.id },
-// //       include: {
-// //         images: true,
-// //         variants: {
-// //           include: {
-// //             options: {
-// //               include: {
-// //                 images: true,
-// //               },
-// //             },
-// //           },
-// //         },
-// //       },
-// //     });
-// //   });
-// // };
-
-// const createProduct = async (payload: any) => {
-//   const {
-//     title,
-//     slug,
-//     description,
-//     shortDesc,
-//     categoryId,
-//     brand,
-//     hasVariants,
-//     isActive,
-//     isFeatured,
-//     images = [], // product images [{ id }]
-//     variants: inputVariants = [],
-//   } = payload;
-
-//   /* ----------------------------------------------------
-//      DEFAULT VARIANT (WHEN NO VARIANTS)
-//   ---------------------------------------------------- */
-
-//   const DEFAULTPRODUCTVARIANT = {
-//     title: "Default",
-//     isActive: true,
-//     options: [
-//       {
-//         sku: uuid(),
-//         stock: inputVariants[0]?.options?.[0]?.stock || 0,
-//         price: inputVariants[0]?.options?.[0]?.price || 0,
-//         comparePrice: inputVariants[0]?.options?.[0]?.comparePrice || 0,
-//         costPrice: inputVariants[0]?.options?.[0]?.costPrice || 0,
-//         name: "Default Option",
-//         value: "Default Value",
-//         isActive: true,
-//         images: [],
-//       },
-//     ],
-//   };
-
-//   const variants =
-//     !hasVariants || inputVariants.length === 0
-//       ? [DEFAULTPRODUCTVARIANT]
-//       : inputVariants;
-
-//   return prisma.$transaction(async (tx) => {
-//     /* ----------------------------------------------------
-//        1️⃣ VALIDATION
-//     ---------------------------------------------------- */
-
-//     const [category, existingProduct] = await Promise.all([
-//       categoryId
-//         ? tx.category.findUnique({
-//             where: { id: categoryId },
-//             select: { id: true },
-//           })
-//         : null,
-//       tx.product.findUnique({
-//         where: { slug },
-//         select: { id: true },
-//       }),
-//     ]);
-
-//     if (categoryId && !category) {
-//       throw new AppError(httpStatus.NOT_FOUND, "Category not found");
-//     }
-
-//     if (existingProduct) {
-//       throw new AppError(httpStatus.CONFLICT, "Product slug already exists");
-//     }
-
-//     /* ----------------------------------------------------
-//        2️⃣ CREATE PRODUCT
-//     ---------------------------------------------------- */
-
-//     const product = await tx.product.create({
-//       data: {
-//         title,
-//         slug,
-//         description,
-//         shortDesc,
-//         categoryId,
-//         brand,
-//         hasVariants,
-//         isActive,
-//         isFeatured,
-//       },
-//     });
-
-//     /* ----------------------------------------------------
-//        3️⃣ ATTACH PRODUCT IMAGES
-//     ---------------------------------------------------- */
-
-//     if (images.length) {
-//       const imageIds = images.map((img: any) => img.id).filter(Boolean);
-
-//       if (imageIds.length) {
-//         await tx.productImage.updateMany({
-//           where: {
-//             id: { in: imageIds },
-//             productId: null,
-//           },
-//           data: {
-//             productId: product.id,
-//           },
-//         });
-//       }
-//     }
-
-//     /* ----------------------------------------------------
-//        4️⃣ VARIANTS (createMany)
-//     ---------------------------------------------------- */
-
-//     if (!hasVariants || !variants.length) {
-//       return product;
-//     }
-
-//     await tx.productVariant.createMany({
-//       data: variants.map((variant: any) => ({
-//         productId: product.id,
-//         title: variant.title,
-//         isActive: variant.isActive === true || variant.isActive === "true",
-//       })),
-//     });
-
-//     /* ----------------------------------------------------
-//        5️⃣ FETCH CREATED VARIANTS
-//     ---------------------------------------------------- */
-
-//     const createdVariants = await tx.productVariant.findMany({
-//       where: { productId: product.id },
-//       select: { id: true, title: true },
-//     });
-
-//     const variantMap = new Map(createdVariants.map((v) => [v.title, v.id]));
-
-//     /* ----------------------------------------------------
-//        6️⃣ VARIANT OPTIONS (createMany)
-//     ---------------------------------------------------- */
-
-//     const optionPayload: any[] = [];
-
-//     variants.forEach((variant: any) => {
-//       const variantId = variantMap.get(variant.title);
-//       if (!variantId) return;
-
-//       variant.options.forEach((option: any) => {
-//         optionPayload.push({
-//           productVariantId: variantId,
-//           sku: option.sku || uuid(),
-//           stock: option.stock,
-//           price: option.price,
-//           comparePrice: option.comparePrice,
-//           costPrice: option.costPrice,
-//           name: option.name,
-//           value: option.value,
-//           isActive: option.isActive === true || option.isActive === "true",
-//         });
-//       });
-//     });
-
-//     if (optionPayload.length) {
-//       await tx.variantOption.createMany({
-//         data: optionPayload,
-//       });
-//     }
-
-//     /* ----------------------------------------------------
-//        7️⃣ ATTACH VARIANT OPTION IMAGES
-//     ---------------------------------------------------- */
-
-//     const createdOptions = await tx.variantOption.findMany({
-//       where: {
-//         productVariantId: {
-//           in: createdVariants.map((v) => v.id),
-//         },
-//       },
-//       select: {
-//         id: true,
-//         sku: true,
-//       },
-//     });
-
-//     const optionMap = new Map(createdOptions.map((o) => [o.sku, o.id]));
-
-//     for (const variant of variants) {
-//       for (const option of variant.options) {
-//         if (!option.images?.length) continue;
-
-//         const optionId = optionMap.get(option.sku);
-//         if (!optionId) continue;
-
-//         const imageIds = option.images
-//           .map((img: any) => img.id)
-//           .filter(Boolean);
-
-//         if (!imageIds.length) continue;
-
-//         await tx.productImage.updateMany({
-//           where: {
-//             id: { in: imageIds },
-//             variantOptionId: null,
-//           },
-//           data: {
-//             variantOptionId: optionId,
-//           },
-//         });
-//       }
-//     }
-
-//     /* ----------------------------------------------------
-//        8️⃣ RETURN FULL PRODUCT
-//     ---------------------------------------------------- */
-
-//     return tx.product.findUnique({
-//       where: { id: product.id },
-//       include: {
-//         images: true,
-//         variants: {
-//           include: {
-//             options: {
-//               include: {
-//                 images: true,
-//               },
-//             },
-//           },
-//         },
-//       },
-//     });
-//   });
-// };
-
-// // const updateProduct = async (productId: string, payload: any) => {
-// //   return await prisma.$transaction(async (tx) => {
-// //     /* ----------------------------------------------------
-// //        1️⃣ CHECK PRODUCT EXISTS
-// //     ---------------------------------------------------- */
-// //     const existingProduct = await tx.product.findUnique({
-// //       where: { id: productId },
-// //       select: { id: true },
-// //     });
-
-// //     if (!existingProduct) {
-// //       throw new AppError(httpStatus.NOT_FOUND, "Product not found");
-// //     }
-
-// //     /* ----------------------------------------------------
-// //        2️⃣ VALIDATIONS (CONDITIONAL)
-// //     ---------------------------------------------------- */
-
-// //     if (payload.categoryId) {
-// //       const category = await tx.category.findUnique({
-// //         where: { id: payload.categoryId },
-// //         select: { id: true },
-// //       });
-
-// //       if (!category) {
-// //         throw new AppError(httpStatus.NOT_FOUND, "Category not found");
-// //       }
-// //     }
-
-// //     if (payload.slug) {
-// //       const slugExists = await tx.product.findFirst({
-// //         where: {
-// //           slug: payload.slug,
-// //           NOT: { id: productId },
-// //         },
-// //         select: { id: true },
-// //       });
-
-// //       if (slugExists) {
-// //         throw new AppError(httpStatus.CONFLICT, "Product slug already exists");
-// //       }
-// //     }
-
-// //     /* ----------------------------------------------------
-// //        3️⃣ UPDATE PRODUCT (ONLY PROVIDED FIELDS)
-// //     ---------------------------------------------------- */
-
-// //     const updateData: any = {};
-
-// //     const fields = [
-// //       "title",
-// //       "slug",
-// //       "description",
-// //       "shortDesc",
-// //       "categoryId",
-// //       "brand",
-// //       "hasVariants",
-// //       "isActive",
-// //       "isFeatured",
-// //     ];
-
-// //     fields.forEach((field) => {
-// //       if (payload[field] !== undefined) {
-// //         updateData[field] = payload[field];
-// //       }
-// //     });
-
-// //     await tx.product.update({
-// //       where: { id: productId },
-// //       data: updateData,
-// //     });
-
-// //     /* ----------------------------------------------------
-// //        4️⃣ UPDATE PRODUCT IMAGES (REPLACE IF PROVIDED)
-// //     ---------------------------------------------------- */
-
-// //     if (payload.images) {
-// //       await tx.productImage.deleteMany({
-// //         where: { productId },
-// //       });
-
-// //       if (payload.images.length) {
-// //         await tx.productImage.createMany({
-// //           data: payload.images.map((img: any) => ({
-// //             src: img.src || img.path,
-// //             altText: img.altText || "",
-// //             publicId: img.publicId || img.filename,
-// //             isPrimary: img.isPrimary ?? false,
-// //             productId,
-// //           })),
-// //         });
-// //       }
-// //     }
-
-// //     /* ----------------------------------------------------
-// //        5️⃣ UPDATE VARIANTS (REPLACE STRATEGY)
-// //     ---------------------------------------------------- */
-
-// //     if (payload.variants) {
-// //       // delete old tree
-// //       await tx.productVariant.deleteMany({
-// //         where: { productId },
-// //       });
-
-// //       if (payload.hasVariants && payload.variants.length) {
-// //         const createdVariants = await Promise.all(
-// //           payload.variants.map((variant: any) =>
-// //             tx.productVariant.create({
-// //               data: {
-// //                 productId,
-// //                 title: variant.title,
-// //                 isActive: variant.isActive,
-// //               },
-// //             }),
-// //           ),
-// //         );
-
-// //         const optionPayload: any[] = [];
-
-// //         payload.variants.forEach((variant: any, vIndex: number) => {
-// //           const variantId = createdVariants[vIndex].id;
-
-// //           variant.options.forEach((option: any) => {
-// //             optionPayload.push({
-// //               productVariantId: variantId,
-// //               sku: option.sku,
-// //               stock: option.stock,
-// //               price: option.price,
-// //               comparePrice: option.comparePrice,
-// //               costPrice: option.costPrice,
-// //               name: option.name,
-// //               value: option.value,
-// //               isActive: option.isActive,
-// //             });
-// //           });
-// //         });
-
-// //         if (optionPayload.length) {
-// //           await tx.variantOption.createMany({
-// //             data: optionPayload,
-// //           });
-// //         }
-// //       }
-// //     }
-
-// //     /* ----------------------------------------------------
-// //        6️⃣ RETURN UPDATED PRODUCT
-// //     ---------------------------------------------------- */
-
-// //     return tx.product.findUnique({
-// //       where: { id: productId },
-// //       select: {
-// //         id: true,
-// //         title: true,
-// //         slug: true,
-// //         description: true,
-// //         shortDesc: true,
-// //         categoryId: true,
-// //         brand: true,
-// //         hasVariants: true,
-// //         isActive: true,
-// //         isFeatured: true,
-// //         createdAt: true,
-// //         updatedAt: true,
-// //         images: true,
-// //         variants: {
-// //           include: {
-// //             options: {
-// //               include: { images: true },
-// //             },
-// //           },
-// //         },
-// //       },
-// //     });
-// //   });
-// // };
-
-// const updateProduct = async (productId: string, payload: any) => {
-//   return prisma.$transaction(async (tx) => {
-//     /* ----------------------------------------------------
-//        1️⃣ CHECK PRODUCT
-//     ---------------------------------------------------- */
-
-//     const product = await tx.product.findUnique({
-//       where: { id: productId },
-//     });
-
-//     if (!product) {
-//       throw new AppError(httpStatus.NOT_FOUND, "Product not found");
-//     }
-
-//     /* ----------------------------------------------------
-//        2️⃣ UPDATE PRODUCT FIELDS (PATCH STYLE)
-//     ---------------------------------------------------- */
-
-//     const productUpdate: any = {};
-//     const fields = [
-//       "title",
-//       "slug",
-//       "description",
-//       "shortDesc",
-//       "categoryId",
-//       "brand",
-//       "hasVariants",
-//       "isActive",
-//       "isFeatured",
-//     ];
-
-//     fields.forEach((field) => {
-//       if (payload[field] !== undefined) {
-//         productUpdate[field] = payload[field];
-//       }
-//     });
-
-//     if (Object.keys(productUpdate).length) {
-//       await tx.product.update({
-//         where: { id: productId },
-//         data: productUpdate,
-//       });
-//     }
-
-//     /* ----------------------------------------------------
-//        3️⃣ PRODUCT IMAGES (OPTIONAL)
-//     ---------------------------------------------------- */
-
-//     if (Array.isArray(payload.images)) {
-//       const imageIds = payload.images.map((i: any) => i.id).filter(Boolean);
-
-//       await tx.productImage.updateMany({
-//         where: { productId },
-//         data: { productId: null },
-//       });
-
-//       if (imageIds.length) {
-//         await tx.productImage.updateMany({
-//           where: {
-//             id: { in: imageIds },
-//             productId: null,
-//           },
-//           data: { productId },
-//         });
-//       }
-//     }
-
-//     /* ----------------------------------------------------
-//        4️⃣ VARIANTS (SMART UPDATE)
-//     ---------------------------------------------------- */
-
-//     if (!Array.isArray(payload.variants)) {
-//       return product;
-//     }
-
-//     const existingVariants = await tx.productVariant.findMany({
-//       where: { productId },
-//       include: { options: true },
-//     });
-
-//     const incomingVariantIds = payload.variants
-//       .map((v: any) => v.id)
-//       .filter(Boolean);
-
-//     /* ---- 4.1 DELETE REMOVED VARIANTS ---- */
-//     await tx.productVariant.deleteMany({
-//       where: {
-//         productId,
-//         id: { notIn: incomingVariantIds },
-//       },
-//     });
-
-//     /* ---- 4.2 UPSERT VARIANTS ---- */
-
-//     for (const variant of payload.variants) {
-//       let variantId = variant.id;
-
-//       if (variantId) {
-//         await tx.productVariant.update({
-//           where: { id: variantId },
-//           data: {
-//             title: variant.title,
-//             isActive: variant.isActive,
-//           },
-//         });
-//       } else {
-//         const created = await tx.productVariant.create({
-//           data: {
-//             productId,
-//             title: variant.title,
-//             isActive: variant.isActive,
-//           },
-//         });
-//         variantId = created.id;
-//       }
-
-//       /* ------------------------------------------------
-//          5️⃣ VARIANT OPTIONS (SMART UPDATE)
-//       ------------------------------------------------ */
-
-//       const existingOptions =
-//         existingVariants.find((v) => v.id === variantId)?.options || [];
-
-//       const incomingOptionIds = variant.options
-//         ?.map((o: any) => o.id)
-//         .filter(Boolean);
-
-//       // delete removed options
-//       await tx.variantOption.deleteMany({
-//         where: {
-//           productVariantId: variantId,
-//           id: { notIn: incomingOptionIds },
-//         },
-//       });
-
-//       for (const option of variant.options || []) {
-//         let optionId = option.id;
-
-//         if (optionId) {
-//           await tx.variantOption.update({
-//             where: { id: optionId },
-//             data: {
-//               name: option.name,
-//               value: option.value,
-//               sku: option.sku,
-//               stock: option.stock,
-//               price: option.price,
-//               comparePrice: option.comparePrice,
-//               costPrice: option.costPrice,
-//               isActive: option.isActive,
-//             },
-//           });
-//         } else {
-//           const createdOption = await tx.variantOption.create({
-//             data: {
-//               productVariantId: variantId,
-//               sku: option.sku || uuid(),
-//               name: option.name,
-//               value: option.value,
-//               stock: option.stock,
-//               price: option.price,
-//               comparePrice: option.comparePrice,
-//               costPrice: option.costPrice,
-//               isActive: option.isActive,
-//             },
-//           });
-//           optionId = createdOption.id;
-//         }
-
-//         /* --------------------------------------------
-//            6️⃣ OPTION IMAGES (UPDATE)
-//         -------------------------------------------- */
-
-//         if (Array.isArray(option.images)) {
-//           const imageIds = option.images.map((i: any) => i.id).filter(Boolean);
-
-//           await tx.productImage.updateMany({
-//             where: { variantOptionId: optionId },
-//             data: { variantOptionId: null },
-//           });
-
-//           if (imageIds.length) {
-//             await tx.productImage.updateMany({
-//               where: {
-//                 id: { in: imageIds },
-//                 variantOptionId: null,
-//               },
-//               data: { variantOptionId: optionId },
-//             });
-//           }
-//         }
-//       }
-//     }
-
-//     /* ----------------------------------------------------
-//        7️⃣ RETURN UPDATED PRODUCT
-//     ---------------------------------------------------- */
-
-//     return tx.product.findUnique({
-//       where: { id: productId },
-//       include: {
-//         images: true,
-//         variants: {
-//           include: {
-//             options: {
-//               include: { images: true },
-//             },
-//           },
-//         },
-//       },
-//     });
-//   });
-// };
-
-// const getAllProducts = async (query: Record<string, string>) => {
-//   const qb = new QueryBuilder<any, any, any>(query)
-//     .filter()
-//     .search(searchableFields)
-//     .sort()
-//     .paginate();
-
-//   const prismaQuery = qb.build();
-
-//   const data = await prisma.product.findMany({
-//     ...prismaQuery,
-//     include: {
-//       images: true,
-//       variants: {
-//         include: {
-//           options: {
-//             include: {
-//               images: true,
-//             },
-//           },
-//         },
-//       },
-//     },
-//   });
-
-//   const meta = await qb.getMeta(prisma.product);
-
-//   return {
-//     meta,
-//     data,
-//   };
-// };
-
-// const getProductById = async (productId: string) => {
-//   const product = await prisma.product.findUnique({
-//     where: { id: productId },
-//     include: {
-//       images: true,
-//       variants: {
-//         include: {
-//           options: {
-//             include: { images: true },
-//           },
-//         },
-//       },
-//     },
-//   });
-
-//   return product;
-// };
-
-// export const ProductServices = {
-//   createProduct,
-//   updateProduct,
-//   getAllProducts,
-//   getProductById,
-// };
+import httpStatus from "http-status-codes";
+import type { Prisma } from "../../../../generated/prisma/client";
+import AppError from "../../helper/AppError";
+import { prisma } from "../../lib/prisma";
+import type {
+  ICreateProductPayload,
+  IProductQuery,
+  IProductVariantInput,
+  IUpdateProductPayload,
+} from "./product.interface";
+
+const productSearchableFields = ["title", "slug", "brand"] as const;
+const allowedSortFields = [
+  "createdAt",
+  "updatedAt",
+  "title",
+  "slug",
+  "price",
+  "isActive",
+  "isFeatured",
+] as const;
+
+const productImageSelect = {
+  id: true,
+  src: true,
+  publicId: true,
+  altText: true,
+  sortOrder: true,
+  isPrimary: true,
+  productId: true,
+  variantId: true,
+  variantOptionId: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.ProductImageSelect;
+
+const variantOptionSelect = {
+  id: true,
+  productVariantId: true,
+  sku: true,
+  barcode: true,
+  price: true,
+  compareAtPrice: true,
+  costPrice: true,
+  stock: true,
+  isActive: true,
+  createdAt: true,
+  updatedAt: true,
+  images: {
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    select: productImageSelect,
+  },
+} satisfies Prisma.VariantOptionSelect;
+
+const productVariantSelect = {
+  id: true,
+  productId: true,
+  title: true,
+  isActive: true,
+  createdAt: true,
+  updatedAt: true,
+  images: {
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    select: productImageSelect,
+  },
+  options: {
+    orderBy: [{ createdAt: "asc" }],
+    select: variantOptionSelect,
+  },
+} satisfies Prisma.ProductVariantSelect;
+
+const productDetailsSelect = {
+  id: true,
+  title: true,
+  slug: true,
+  description: true,
+  shortDesc: true,
+  brand: true,
+  categoryId: true,
+  price: true,
+  compareAtPrice: true,
+  costPrice: true,
+  sku: true,
+  barcode: true,
+  stock: true,
+  lowStockThreshold: true,
+  hasVariants: true,
+  isActive: true,
+  isFeatured: true,
+  isDigital: true,
+  metaTitle: true,
+  metaDescription: true,
+  metaKeywords: true,
+  metadata: true,
+  createdAt: true,
+  updatedAt: true,
+  category: {
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      parentId: true,
+    },
+  },
+  images: {
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    select: productImageSelect,
+  },
+  variants: {
+    orderBy: [{ createdAt: "asc" }],
+    select: productVariantSelect,
+  },
+} satisfies Prisma.ProductSelect;
+
+const parseBooleanQuery = (value: string, key: string) => {
+  if (value !== "true" && value !== "false") {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `${key} query must be true or false`,
+    );
+  }
+
+  return value === "true";
+};
+
+const buildOrderBy = (
+  sort: string | undefined,
+): Prisma.ProductOrderByWithRelationInput[] => {
+  if (!sort) {
+    return [{ createdAt: "desc" }];
+  }
+
+  const orderBy = sort
+    .split(",")
+    .map((field) => field.trim())
+    .filter(Boolean)
+    .map((field) => {
+      const direction = field.startsWith("-") ? "desc" : "asc";
+      const normalizedField = field.replace(/^-/, "");
+
+      if (
+        !allowedSortFields.includes(
+          normalizedField as (typeof allowedSortFields)[number],
+        )
+      ) {
+        return null;
+      }
+
+      return {
+        [normalizedField]: direction,
+      } as Prisma.ProductOrderByWithRelationInput;
+    })
+    .filter(
+      (value): value is Prisma.ProductOrderByWithRelationInput =>
+        value !== null,
+    );
+
+  if (!orderBy.length) {
+    return [{ createdAt: "desc" }];
+  }
+
+  return orderBy;
+};
+
+const buildWhere = (query: IProductQuery): Prisma.ProductWhereInput => {
+  const where: Prisma.ProductWhereInput = {};
+
+  if (query.searchTerm?.trim()) {
+    where.OR = productSearchableFields.map((field) => ({
+      [field]: {
+        contains: query.searchTerm,
+        mode: "insensitive",
+      },
+    }));
+  }
+
+  if (query.categoryId !== undefined) {
+    const normalizedCategoryId = query.categoryId.trim().toLowerCase();
+
+    if (!normalizedCategoryId || normalizedCategoryId === "null") {
+      where.categoryId = null;
+    } else {
+      where.categoryId = query.categoryId;
+    }
+  }
+
+  if (query.brand?.trim()) {
+    where.brand = {
+      contains: query.brand.trim(),
+      mode: "insensitive",
+    };
+  }
+
+  if (query.isActive !== undefined) {
+    where.isActive = parseBooleanQuery(query.isActive, "isActive");
+  }
+
+  if (query.hasVariants !== undefined) {
+    where.hasVariants = parseBooleanQuery(query.hasVariants, "hasVariants");
+  }
+
+  if (query.isFeatured !== undefined) {
+    where.isFeatured = parseBooleanQuery(query.isFeatured, "isFeatured");
+  }
+
+  return where;
+};
+
+const collectVariantSkus = (variants: IProductVariantInput[] | undefined) => {
+  if (!variants?.length) {
+    return [];
+  }
+
+  return variants.flatMap((variant) =>
+    variant.options.map((option) => option.sku.trim()),
+  );
+};
+
+const ensureCategoryExists = async (categoryId?: string | null) => {
+  if (!categoryId) {
+    return;
+  }
+
+  const category = await prisma.category.findUnique({
+    where: { id: categoryId },
+    select: { id: true },
+  });
+
+  if (!category) {
+    throw new AppError(httpStatus.NOT_FOUND, "Category not found");
+  }
+};
+
+const ensureSlugUnique = async (slug: string, excludedProductId?: string) => {
+  const existingProduct = await prisma.product.findFirst({
+    where: {
+      slug,
+      ...(excludedProductId && { id: { not: excludedProductId } }),
+    },
+    select: { id: true },
+  });
+
+  if (existingProduct) {
+    throw new AppError(httpStatus.CONFLICT, "Product slug already exists");
+  }
+};
+
+const ensureProductSkuUnique = async (
+  sku: string | undefined,
+  excludedId?: string,
+) => {
+  if (!sku) {
+    return;
+  }
+
+  const existingProduct = await prisma.product.findFirst({
+    where: {
+      sku,
+      ...(excludedId && { id: { not: excludedId } }),
+    },
+    select: { id: true },
+  });
+
+  if (existingProduct) {
+    throw new AppError(httpStatus.CONFLICT, "Product SKU already exists");
+  }
+};
+
+const ensureVariantSkusAvailable = async (
+  skus: string[],
+  currentProductId?: string,
+) => {
+  const uniqueSkus = [...new Set(skus)];
+
+  if (!uniqueSkus.length) {
+    return;
+  }
+
+  const existingOptions = await prisma.variantOption.findMany({
+    where: {
+      sku: {
+        in: uniqueSkus,
+      },
+    },
+    select: {
+      sku: true,
+      variant: {
+        select: {
+          productId: true,
+        },
+      },
+    },
+  });
+
+  const conflict = existingOptions.find((option) => {
+    if (!currentProductId) {
+      return true;
+    }
+
+    return option.variant.productId !== currentProductId;
+  });
+
+  if (conflict) {
+    throw new AppError(
+      httpStatus.CONFLICT,
+      `Variant option SKU '${conflict.sku}' already exists`,
+    );
+  }
+};
+
+const attachImagesToProduct = async (
+  tx: Prisma.TransactionClient,
+  productId: string,
+  imageIds: string[] | undefined,
+) => {
+  if (!imageIds?.length) {
+    return;
+  }
+
+  const uniqueImageIds = [...new Set(imageIds)];
+
+  for (const imageId of uniqueImageIds) {
+    const image = await tx.productImage.findUnique({
+      where: { id: imageId },
+      select: {
+        id: true,
+        src: true,
+        publicId: true,
+        altText: true,
+        sortOrder: true,
+        isPrimary: true,
+        productId: true,
+      },
+    });
+
+    if (!image) {
+      throw new AppError(httpStatus.BAD_REQUEST, `Image '${imageId}' not found`);
+    }
+
+    if (image.productId === productId) {
+      continue;
+    }
+
+    if (image.productId === null) {
+      await tx.productImage.update({
+        where: { id: image.id },
+        data: { productId },
+      });
+      continue;
+    }
+
+    await tx.productImage.create({
+      data: {
+        src: image.src,
+        publicId: image.publicId,
+        altText: image.altText,
+        sortOrder: image.sortOrder,
+        isPrimary: image.isPrimary,
+        productId,
+      },
+    });
+  }
+};
+
+const attachImagesToVariant = async (
+  tx: Prisma.TransactionClient,
+  variantId: string,
+  imageIds: string[] | undefined,
+) => {
+  if (!imageIds?.length) {
+    return;
+  }
+
+  const uniqueImageIds = [...new Set(imageIds)];
+
+  for (const imageId of uniqueImageIds) {
+    const image = await tx.productImage.findUnique({
+      where: { id: imageId },
+      select: {
+        id: true,
+        src: true,
+        publicId: true,
+        altText: true,
+        sortOrder: true,
+        isPrimary: true,
+        variantId: true,
+      },
+    });
+
+    if (!image) {
+      throw new AppError(httpStatus.BAD_REQUEST, `Image '${imageId}' not found`);
+    }
+
+    if (image.variantId === variantId) {
+      continue;
+    }
+
+    if (image.variantId === null) {
+      await tx.productImage.update({
+        where: { id: image.id },
+        data: { variantId },
+      });
+      continue;
+    }
+
+    await tx.productImage.create({
+      data: {
+        src: image.src,
+        publicId: image.publicId,
+        altText: image.altText,
+        sortOrder: image.sortOrder,
+        isPrimary: image.isPrimary,
+        variantId,
+      },
+    });
+  }
+};
+
+const attachImagesToVariantOption = async (
+  tx: Prisma.TransactionClient,
+  variantOptionId: string,
+  imageIds: string[] | undefined,
+) => {
+  if (!imageIds?.length) {
+    return;
+  }
+
+  const uniqueImageIds = [...new Set(imageIds)];
+
+  for (const imageId of uniqueImageIds) {
+    const image = await tx.productImage.findUnique({
+      where: { id: imageId },
+      select: {
+        id: true,
+        src: true,
+        publicId: true,
+        altText: true,
+        sortOrder: true,
+        isPrimary: true,
+        variantOptionId: true,
+      },
+    });
+
+    if (!image) {
+      throw new AppError(httpStatus.BAD_REQUEST, `Image '${imageId}' not found`);
+    }
+
+    if (image.variantOptionId === variantOptionId) {
+      continue;
+    }
+
+    if (image.variantOptionId === null) {
+      await tx.productImage.update({
+        where: { id: image.id },
+        data: { variantOptionId },
+      });
+      continue;
+    }
+
+    await tx.productImage.create({
+      data: {
+        src: image.src,
+        publicId: image.publicId,
+        altText: image.altText,
+        sortOrder: image.sortOrder,
+        isPrimary: image.isPrimary,
+        variantOptionId,
+      },
+    });
+  }
+};
+
+const detachImagesFromProduct = async (
+  tx: Prisma.TransactionClient,
+  productId: string,
+) => {
+  await tx.productImage.updateMany({
+    where: { productId },
+    data: { productId: null },
+  });
+};
+
+const detachImagesFromVariants = async (
+  tx: Prisma.TransactionClient,
+  variantIds: string[],
+) => {
+  if (!variantIds.length) {
+    return;
+  }
+
+  await tx.productImage.updateMany({
+    where: {
+      variantId: {
+        in: variantIds,
+      },
+    },
+    data: {
+      variantId: null,
+    },
+  });
+};
+
+const detachImagesFromVariantOptions = async (
+  tx: Prisma.TransactionClient,
+  optionIds: string[],
+) => {
+  if (!optionIds.length) {
+    return;
+  }
+
+  await tx.productImage.updateMany({
+    where: {
+      variantOptionId: {
+        in: optionIds,
+      },
+    },
+    data: {
+      variantOptionId: null,
+    },
+  });
+};
+
+const createVariantTree = async (
+  tx: Prisma.TransactionClient,
+  productId: string,
+  variants: IProductVariantInput[],
+) => {
+  for (const variant of variants) {
+    const createdVariant = await tx.productVariant.create({
+      data: {
+        productId,
+        title: variant.title,
+        isActive: variant.isActive ?? true,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await attachImagesToVariant(tx, createdVariant.id, variant.imageIds);
+
+    for (const option of variant.options) {
+      const createdOption = await tx.variantOption.create({
+        data: {
+          productVariantId: createdVariant.id,
+          sku: option.sku,
+          barcode: option.barcode ?? null,
+          price: option.price,
+          compareAtPrice: option.compareAtPrice ?? null,
+          costPrice: option.costPrice ?? null,
+          stock: option.stock ?? 0,
+          isActive: option.isActive ?? true,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      await attachImagesToVariantOption(tx, createdOption.id, option.imageIds);
+    }
+  }
+};
+
+const createProduct = async (payload: ICreateProductPayload) => {
+  const hasVariants = payload.hasVariants ?? false;
+  const variants = hasVariants ? (payload.variants ?? []) : [];
+  const productPrice = hasVariants ? null : (payload.price ?? null);
+
+  if (hasVariants && !variants.length) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Variants are required when hasVariants is true",
+    );
+  }
+
+  await Promise.all([
+    ensureCategoryExists(payload.categoryId),
+    ensureSlugUnique(payload.slug),
+    ensureProductSkuUnique(payload.sku),
+    ensureVariantSkusAvailable(collectVariantSkus(variants)),
+  ]);
+
+  const createdProduct = await prisma.$transaction(async (tx) => {
+    const product = await tx.product.create({
+      data: {
+        title: payload.title,
+        slug: payload.slug,
+        description: payload.description ?? null,
+        shortDesc: payload.shortDesc ?? null,
+        brand: payload.brand ?? null,
+        categoryId: payload.categoryId ?? null,
+        price: productPrice,
+        compareAtPrice: payload.compareAtPrice ?? null,
+        costPrice: payload.costPrice ?? null,
+        sku: payload.sku ?? null,
+        barcode: payload.barcode ?? null,
+        stock: payload.stock ?? null,
+        lowStockThreshold: payload.lowStockThreshold ?? 5,
+        hasVariants,
+        isActive: payload.isActive ?? true,
+        isFeatured: payload.isFeatured ?? false,
+        isDigital: payload.isDigital ?? false,
+        metaTitle: payload.metaTitle ?? null,
+        metaDescription: payload.metaDescription ?? null,
+        metaKeywords: payload.metaKeywords ?? null,
+        ...(payload.metadata !== undefined &&
+          payload.metadata !== null && {
+            metadata: payload.metadata as Prisma.InputJsonValue,
+          }),
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await attachImagesToProduct(tx, product.id, payload.imageIds);
+
+    if (variants.length) {
+      await createVariantTree(tx, product.id, variants);
+    }
+
+    const fullProduct = await tx.product.findUnique({
+      where: { id: product.id },
+      select: productDetailsSelect,
+    });
+
+    if (!fullProduct) {
+      throw new AppError(httpStatus.NOT_FOUND, "Product not found");
+    }
+
+    return fullProduct;
+  });
+
+  return createdProduct;
+};
+
+const getProducts = async (query: IProductQuery) => {
+  const page = Math.max(Number(query.page) || 1, 1);
+  const limit = Math.min(Math.max(Number(query.limit) || 20, 1), 100);
+  const skip = (page - 1) * limit;
+
+  const where = buildWhere(query);
+
+  const [data, total] = await Promise.all([
+    prisma.product.findMany({
+      where,
+      orderBy: buildOrderBy(query.sort),
+      skip,
+      take: limit,
+      select: productDetailsSelect,
+    }),
+    prisma.product.count({ where }),
+  ]);
+
+  return {
+    meta: {
+      page,
+      limit,
+      total,
+      totalPage: Math.ceil(total / limit),
+    },
+    data,
+  };
+};
+
+const getProductById = async (productId: string) => {
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    select: productDetailsSelect,
+  });
+
+  if (!product) {
+    throw new AppError(httpStatus.NOT_FOUND, "Product not found");
+  }
+
+  return product;
+};
+
+const updateProduct = async (
+  productId: string,
+  payload: IUpdateProductPayload,
+) => {
+  const existingProduct = await prisma.product.findUnique({
+    where: { id: productId },
+    select: {
+      id: true,
+      hasVariants: true,
+    },
+  });
+
+  if (!existingProduct) {
+    throw new AppError(httpStatus.NOT_FOUND, "Product not found");
+  }
+
+  if (payload.hasVariants === true && !payload.variants?.length) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Variants are required when hasVariants is true",
+    );
+  }
+
+  if (payload.hasVariants === false && payload.variants?.length) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Cannot submit variants when hasVariants is false",
+    );
+  }
+
+  await Promise.all([
+    payload.categoryId !== undefined
+      ? ensureCategoryExists(payload.categoryId)
+      : Promise.resolve(),
+    payload.slug ? ensureSlugUnique(payload.slug, productId) : Promise.resolve(),
+    payload.sku !== undefined
+      ? ensureProductSkuUnique(payload.sku, productId)
+      : Promise.resolve(),
+    payload.variants
+      ? ensureVariantSkusAvailable(
+          collectVariantSkus(payload.variants),
+          productId,
+        )
+      : Promise.resolve(),
+  ]);
+
+  const updatedProduct = await prisma.$transaction(async (tx) => {
+    const updateData: Prisma.ProductUncheckedUpdateInput = {};
+    const nextHasVariants =
+      payload.hasVariants !== undefined
+        ? payload.hasVariants
+        : payload.variants !== undefined
+          ? payload.variants.length > 0
+          : existingProduct.hasVariants;
+
+    if (payload.title !== undefined) {
+      updateData.title = payload.title;
+    }
+
+    if (payload.slug !== undefined) {
+      updateData.slug = payload.slug;
+    }
+
+    if (payload.description !== undefined) {
+      updateData.description = payload.description;
+    }
+
+    if (payload.shortDesc !== undefined) {
+      updateData.shortDesc = payload.shortDesc;
+    }
+
+    if (payload.brand !== undefined) {
+      updateData.brand = payload.brand;
+    }
+
+    if (payload.categoryId !== undefined) {
+      updateData.categoryId = payload.categoryId;
+    }
+
+    if (nextHasVariants) {
+      updateData.price = null;
+    } else if (payload.price !== undefined) {
+      updateData.price = payload.price;
+    }
+
+    if (payload.compareAtPrice !== undefined) {
+      updateData.compareAtPrice = payload.compareAtPrice;
+    }
+
+    if (payload.costPrice !== undefined) {
+      updateData.costPrice = payload.costPrice;
+    }
+
+    if (payload.sku !== undefined) {
+      updateData.sku = payload.sku;
+    }
+
+    if (payload.barcode !== undefined) {
+      updateData.barcode = payload.barcode;
+    }
+
+    if (payload.stock !== undefined) {
+      updateData.stock = payload.stock;
+    }
+
+    if (payload.lowStockThreshold !== undefined) {
+      updateData.lowStockThreshold = payload.lowStockThreshold;
+    }
+
+    if (payload.hasVariants !== undefined) {
+      updateData.hasVariants = payload.hasVariants;
+    }
+
+    if (payload.isActive !== undefined) {
+      updateData.isActive = payload.isActive;
+    }
+
+    if (payload.isFeatured !== undefined) {
+      updateData.isFeatured = payload.isFeatured;
+    }
+
+    if (payload.isDigital !== undefined) {
+      updateData.isDigital = payload.isDigital;
+    }
+
+    if (payload.metaTitle !== undefined) {
+      updateData.metaTitle = payload.metaTitle;
+    }
+
+    if (payload.metaDescription !== undefined) {
+      updateData.metaDescription = payload.metaDescription;
+    }
+
+    if (payload.metaKeywords !== undefined) {
+      updateData.metaKeywords = payload.metaKeywords;
+    }
+
+    if (payload.metadata !== undefined && payload.metadata !== null) {
+      updateData.metadata = payload.metadata as Prisma.InputJsonValue;
+    }
+
+    if (payload.variants !== undefined && payload.hasVariants === undefined) {
+      updateData.hasVariants = payload.variants.length > 0;
+    }
+
+    if (Object.keys(updateData).length) {
+      await tx.product.update({
+        where: { id: productId },
+        data: updateData,
+      });
+    }
+
+    if (payload.imageIds !== undefined) {
+      await detachImagesFromProduct(tx, productId);
+      await attachImagesToProduct(tx, productId, payload.imageIds);
+    }
+
+    const shouldReplaceVariants =
+      payload.variants !== undefined || payload.hasVariants === false;
+
+    if (shouldReplaceVariants) {
+      const existingVariants = await tx.productVariant.findMany({
+        where: { productId },
+        select: {
+          id: true,
+          options: {
+            select: { id: true },
+          },
+        },
+      });
+
+      const existingVariantIds = existingVariants.map((variant) => variant.id);
+      const existingOptionIds = existingVariants.flatMap((variant) =>
+        variant.options.map((option) => option.id),
+      );
+
+      await detachImagesFromVariantOptions(tx, existingOptionIds);
+      await detachImagesFromVariants(tx, existingVariantIds);
+
+      await tx.productVariant.deleteMany({
+        where: { productId },
+      });
+
+      const nextVariants = payload.variants ?? [];
+
+      if (nextVariants.length) {
+        await createVariantTree(tx, productId, nextVariants);
+      }
+    }
+
+    const product = await tx.product.findUnique({
+      where: { id: productId },
+      select: productDetailsSelect,
+    });
+
+    if (!product) {
+      throw new AppError(httpStatus.NOT_FOUND, "Product not found");
+    }
+
+    return product;
+  });
+
+  return updatedProduct;
+};
+
+const deleteProduct = async (productId: string) => {
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    select: { id: true },
+  });
+
+  if (!product) {
+    throw new AppError(httpStatus.NOT_FOUND, "Product not found");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const variants = await tx.productVariant.findMany({
+      where: { productId },
+      select: {
+        id: true,
+        options: {
+          select: { id: true },
+        },
+      },
+    });
+
+    const variantIds = variants.map((variant) => variant.id);
+    const optionIds = variants.flatMap((variant) =>
+      variant.options.map((option) => option.id),
+    );
+
+    await detachImagesFromVariantOptions(tx, optionIds);
+    await detachImagesFromVariants(tx, variantIds);
+    await detachImagesFromProduct(tx, productId);
+
+    await tx.product.delete({
+      where: { id: productId },
+    });
+  });
+};
+
+export const ProductService = {
+  createProduct,
+  getProducts,
+  getProductById,
+  updateProduct,
+  deleteProduct,
+};
