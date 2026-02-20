@@ -26,6 +26,12 @@ interface EnvConfig {
   SUPABASE_URL?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   SUPABASE_BUCKET?: string;
+  META_PIXEL_ID?: string;
+  META_CAPI_ACCESS_TOKEN?: string;
+  META_TEST_EVENT_CODE?: string;
+  GA4_MEASUREMENT_ID?: string;
+  GA4_API_SECRET?: string;
+  GA4_ENDPOINT?: string;
   EMAIL_SENDER: {
     SMTP_USER: string;
     SMTP_PASS: string;
@@ -109,6 +115,30 @@ const loadEnvVariables = (): EnvConfig => {
 
   if (process.env.SUPABASE_BUCKET) {
     envConfig.SUPABASE_BUCKET = process.env.SUPABASE_BUCKET;
+  }
+
+  if (process.env.META_PIXEL_ID) {
+    envConfig.META_PIXEL_ID = process.env.META_PIXEL_ID;
+  }
+
+  if (process.env.META_CAPI_ACCESS_TOKEN) {
+    envConfig.META_CAPI_ACCESS_TOKEN = process.env.META_CAPI_ACCESS_TOKEN;
+  }
+
+  if (process.env.META_TEST_EVENT_CODE) {
+    envConfig.META_TEST_EVENT_CODE = process.env.META_TEST_EVENT_CODE;
+  }
+
+  if (process.env.GA4_MEASUREMENT_ID) {
+    envConfig.GA4_MEASUREMENT_ID = process.env.GA4_MEASUREMENT_ID;
+  }
+
+  if (process.env.GA4_API_SECRET) {
+    envConfig.GA4_API_SECRET = process.env.GA4_API_SECRET;
+  }
+
+  if (process.env.GA4_ENDPOINT) {
+    envConfig.GA4_ENDPOINT = process.env.GA4_ENDPOINT;
   }
 
   return envConfig;
