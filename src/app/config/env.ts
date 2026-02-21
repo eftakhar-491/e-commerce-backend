@@ -32,6 +32,16 @@ interface EnvConfig {
   GA4_MEASUREMENT_ID?: string;
   GA4_API_SECRET?: string;
   GA4_ENDPOINT?: string;
+  SSL: {
+    STORE_ID?: string | undefined;
+    STORE_PASS?: string | undefined;
+    PAYMENT_API?: string | undefined;
+    VALIDATION_API?: string | undefined;
+    SUCCESS_BACKEND_URL?: string | undefined;
+    FAIL_BACKEND_URL?: string | undefined;
+    CANCEL_BACKEND_URL?: string | undefined;
+    IPN_URL?: string | undefined;
+  };
   EMAIL_SENDER: {
     SMTP_USER: string;
     SMTP_PASS: string;
@@ -96,6 +106,20 @@ const loadEnvVariables = (): EnvConfig => {
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID as string,
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET as string,
     GOOGLE_CALLBACK_URL: process.env.GOOGLE_CALLBACK_URL as string,
+    SSL: {
+      STORE_ID: process.env.SSL_STORE_ID,
+      STORE_PASS: process.env.SSL_STORE_PASS,
+      PAYMENT_API:
+        process.env.SSL_PAYMENT_API ??
+        "https://sandbox.sslcommerz.com/gwprocess/v4/api.php",
+      VALIDATION_API:
+        process.env.SSL_VALIDATION_API ??
+        "https://sandbox.sslcommerz.com/validator/api/validationserverAPI.php",
+      SUCCESS_BACKEND_URL: process.env.SSL_SUCCESS_BACKEND_URL,
+      FAIL_BACKEND_URL: process.env.SSL_FAIL_BACKEND_URL,
+      CANCEL_BACKEND_URL: process.env.SSL_CANCEL_BACKEND_URL,
+      IPN_URL: process.env.SSL_IPN_URL,
+    },
     EMAIL_SENDER: {
       SMTP_USER: process.env.SMTP_USER!,
       SMTP_PASS: process.env.SMTP_PASS!,

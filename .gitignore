@@ -11,3 +11,5 @@ uploads
 src/generated
 .vercel
 api
+api/server.js
+/api/server.js
