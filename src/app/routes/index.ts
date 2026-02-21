@@ -7,6 +7,8 @@ import { ImageRoutes } from "../modules/image/image.route";
 import { CartRoutes } from "../modules/cart/cart.route";
 import { TrackingRoutes } from "../modules/tracking/tracking.route";
 import { ReviewRoutes } from "../modules/review/review.route";
+import { OrderRoutes } from "../modules/order/order.route";
+import { PaymentRoutes } from "../modules/payment/payment.route";
 
 export const router = Router();
 
@@ -36,15 +38,22 @@ const moduleRoutes = [
     path: "/cart",
     route: CartRoutes,
   },
-    path: "/tracking",
-    route: TrackingRoutes,
-    
+  {
+    path: "/order",
+    route: OrderRoutes,
   },
   {
-  path: "/review",
+    path: "/payment",
+    route: PaymentRoutes,
+  },
+  {
+    path: "/tracking",
+    route: TrackingRoutes,
+  },
+  {
+    path: "/review",
     route: ReviewRoutes,
-  }
-
+  },
 ];
 
 moduleRoutes.forEach((route) => {
