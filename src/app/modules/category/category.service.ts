@@ -10,6 +10,21 @@ import type {
   IUpdateCategoryPayload,
 } from "./category.interface";
 
+const categoryImageSelect = {
+  id: true,
+  src: true,
+  publicId: true,
+  altText: true,
+  sortOrder: true,
+  isPrimary: true,
+  productId: true,
+  variantId: true,
+  variantOptionId: true,
+  categoryId: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.ProductImageSelect;
+
 const categoryBaseSelect = {
   id: true,
   name: true,
@@ -22,6 +37,10 @@ const categoryBaseSelect = {
   metaTitle: true,
   metaDescription: true,
   metaKeywords: true,
+  images: {
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    select: categoryImageSelect,
+  },
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.CategorySelect;
@@ -170,6 +189,60 @@ const ensureNoCircularParent = async (
   }
 };
 
+const attachImagesToCategory = async (
+  tx: Prisma.TransactionClient,
+  categoryId: string,
+  imageIds: string[] | undefined,
+) => {
+  if (!imageIds?.length) {
+    return;
+  }
+
+  const uniqueImageIds = [...new Set(imageIds)];
+
+  for (const imageId of uniqueImageIds) {
+    const image = await tx.productImage.findUnique({
+      where: { id: imageId },
+      select: {
+        id: true,
+        src: true,
+        publicId: true,
+        altText: true,
+        sortOrder: true,
+        isPrimary: true,
+        categoryId: true,
+      },
+    });
+
+    if (!image) {
+      throw new AppError(httpStatus.BAD_REQUEST, `Image '${imageId}' not found`);
+    }
+
+    if (image.categoryId === categoryId) {
+      continue;
+    }
+
+    if (image.categoryId === null) {
+      await tx.productImage.update({
+        where: { id: image.id },
+        data: { categoryId },
+      });
+      continue;
+    }
+
+    await tx.productImage.create({
+      data: {
+        src: image.src,
+        publicId: image.publicId,
+        altText: image.altText,
+        sortOrder: image.sortOrder,
+        isPrimary: image.isPrimary,
+        categoryId,
+      },
+    });
+  }
+};
+
 const buildOrderBy = (
   sort: string | undefined,
 ): Prisma.CategoryOrderByWithRelationInput[] => {
@@ -238,24 +311,43 @@ const createCategory = async (payload: ICreateCategoryPayload) => {
     ensureNameUniqueWithinParent(payload.name, parentId),
   ]);
 
-  const createdCategory = await prisma.category.create({
-    data: {
-      name: payload.name,
-      slug: payload.slug,
-      ...(payload.description !== undefined && { description: payload.description }),
-      ...(payload.image !== undefined && { image: payload.image }),
-      ...(payload.isActive !== undefined && { isActive: payload.isActive }),
-      ...(payload.sortOrder !== undefined && { sortOrder: payload.sortOrder }),
-      ...(parentId && { parent: { connect: { id: parentId } } }),
-      ...(payload.metaTitle !== undefined && { metaTitle: payload.metaTitle }),
-      ...(payload.metaDescription !== undefined && {
-        metaDescription: payload.metaDescription,
-      }),
-      ...(payload.metaKeywords !== undefined && {
-        metaKeywords: payload.metaKeywords,
-      }),
-    },
-    select: categoryDetailsSelect,
+  const createdCategory = await prisma.$transaction(async (tx) => {
+    const category = await tx.category.create({
+      data: {
+        name: payload.name,
+        slug: payload.slug,
+        ...(payload.description !== undefined && {
+          description: payload.description,
+        }),
+        ...(payload.image !== undefined && { image: payload.image }),
+        ...(payload.isActive !== undefined && { isActive: payload.isActive }),
+        ...(payload.sortOrder !== undefined && { sortOrder: payload.sortOrder }),
+        ...(parentId && { parent: { connect: { id: parentId } } }),
+        ...(payload.metaTitle !== undefined && { metaTitle: payload.metaTitle }),
+        ...(payload.metaDescription !== undefined && {
+          metaDescription: payload.metaDescription,
+        }),
+        ...(payload.metaKeywords !== undefined && {
+          metaKeywords: payload.metaKeywords,
+        }),
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await attachImagesToCategory(tx, category.id, payload.imageIds);
+
+    const fullCategory = await tx.category.findUnique({
+      where: { id: category.id },
+      select: categoryDetailsSelect,
+    });
+
+    if (!fullCategory) {
+      throw new AppError(httpStatus.NOT_FOUND, "Category not found");
+    }
+
+    return fullCategory;
   });
 
   return createdCategory;
@@ -480,10 +572,33 @@ const updateCategory = async (
       : { disconnect: true };
   }
 
-  const updatedCategory = await prisma.category.update({
-    where: { id: categoryId },
-    data: updateData,
-    select: categoryDetailsSelect,
+  const updatedCategory = await prisma.$transaction(async (tx) => {
+    if (Object.keys(updateData).length > 0) {
+      await tx.category.update({
+        where: { id: categoryId },
+        data: updateData,
+      });
+    }
+
+    if (payload.imageIds !== undefined) {
+      await tx.productImage.updateMany({
+        where: { categoryId },
+        data: { categoryId: null },
+      });
+
+      await attachImagesToCategory(tx, categoryId, payload.imageIds);
+    }
+
+    const category = await tx.category.findUnique({
+      where: { id: categoryId },
+      select: categoryDetailsSelect,
+    });
+
+    if (!category) {
+      throw new AppError(httpStatus.NOT_FOUND, "Category not found");
+    }
+
+    return category;
   });
 
   return updatedCategory;

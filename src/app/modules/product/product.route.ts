@@ -1,37 +1,35 @@
-// import { Router } from "express";
-// import { checkAuth } from "../../middlewares/checkAuth";
+import { Router } from "express";
+import { checkAuth } from "../../middlewares/checkAuth";
+import { validateRequest } from "../../middlewares/validateRequest";
+import { Role } from "../user/user.interface";
+import { ProductControllers } from "./product.controller";
+import {
+  createProductZodSchema,
+  updateProductZodSchema,
+} from "./product.validation";
 
-// import { Role } from "../user-pre/user.interface";
-// import { validateRequest } from "../../middlewares/validateRequest";
-// import {
-//   createProductZodSchema,
-//   updateProductZodSchema,
-// } from "./product.validetion";
-// import { ProductController } from "./product.controller";
+// /api/product
 
-// import { parseFormData } from "../../middlewares/parseFormData";
+const router = Router();
 
-// // /api/product/
+router.post(
+  "/",
+  checkAuth(Role.ADMIN, Role.MANAGER),
+  validateRequest(createProductZodSchema),
+  ProductControllers.createProduct,
+);
 
-// const router = Router();
-// // admin route
+router.get("/", ProductControllers.getProducts);
 
-// router.post(
-//   "/create",
-//   checkAuth(Role.ADMIN),
-//   validateRequest(createProductZodSchema),
-//   ProductController.createProduct,
-// );
+router.get("/:id", ProductControllers.getProductById);
 
-// router.post(
-//   "/update/:id",
-//   checkAuth(Role.ADMIN),
-//   validateRequest(updateProductZodSchema),
-//   ProductController.updateProduct,
-// );
+router.patch(
+  "/:id",
+  checkAuth(Role.ADMIN, Role.MANAGER),
+  validateRequest(updateProductZodSchema),
+  ProductControllers.updateProduct,
+);
 
-// router.get("/", ProductController.getAllProducts);
-// router.get("/:id", ProductController.getProductById);
+router.delete("/:id", checkAuth(Role.ADMIN), ProductControllers.deleteProduct);
 
-
-// export const ProductRoutes = router;
+export const ProductRoutes = router;
