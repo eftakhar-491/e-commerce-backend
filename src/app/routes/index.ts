@@ -36,15 +36,14 @@ const moduleRoutes = [
     path: "/cart",
     route: CartRoutes,
   },
+  {
     path: "/tracking",
     route: TrackingRoutes,
-    
   },
   {
-  path: "/review",
+    path: "/review",
     route: ReviewRoutes,
-  }
-
+  },
 ];
 
 moduleRoutes.forEach((route) => {
