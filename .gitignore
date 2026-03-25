@@ -3,11 +3,11 @@ node_modules
 
 dist
 /generated/prisma
-
+.env
 
 uploads
 
 src/generated
 .vercel
 api
-config.bat
+
