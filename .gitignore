@@ -1,13 +1,15 @@
 node_modules
 
-
+api
 dist
 /generated/prisma
+
+.env
+.env.example
+
 
 uploads
 
 src/generated
 .vercel
 api
-
-config.bat
