@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import httpStatus from "http-status-codes";
 import type { Prisma } from "../../../../generated/prisma/client";
 import AppError from "../../helper/AppError";
@@ -10,6 +11,10 @@ import type {
 } from "./product.interface";
 
 const productSearchableFields = ["title", "slug", "brand"] as const;
+const writeTransactionOptions = {
+  maxWait: 10_000,
+  timeout: 60_000,
+};
 const allowedSortFields = [
   "createdAt",
   "updatedAt",
@@ -318,46 +323,70 @@ const attachImagesToProduct = async (
   }
 
   const uniqueImageIds = [...new Set(imageIds)];
+  const images = await tx.productImage.findMany({
+    where: {
+      id: {
+        in: uniqueImageIds,
+      },
+    },
+    select: {
+      id: true,
+      src: true,
+      publicId: true,
+      altText: true,
+      sortOrder: true,
+      isPrimary: true,
+      productId: true,
+    },
+  });
+
+  const imagesById = new Map(images.map((image) => [image.id, image]));
 
   for (const imageId of uniqueImageIds) {
-    const image = await tx.productImage.findUnique({
-      where: { id: imageId },
-      select: {
-        id: true,
-        src: true,
-        publicId: true,
-        altText: true,
-        sortOrder: true,
-        isPrimary: true,
-        productId: true,
-      },
-    });
-
-    if (!image) {
+    if (!imagesById.has(imageId)) {
       throw new AppError(httpStatus.BAD_REQUEST, `Image '${imageId}' not found`);
     }
+  }
+
+  const imageIdsToAssign: string[] = [];
+  const clonedImages: Prisma.ProductImageCreateManyInput[] = [];
+
+  for (const imageId of uniqueImageIds) {
+    const image = imagesById.get(imageId)!;
 
     if (image.productId === productId) {
       continue;
     }
 
     if (image.productId === null) {
-      await tx.productImage.update({
-        where: { id: image.id },
-        data: { productId },
-      });
+      imageIdsToAssign.push(image.id);
       continue;
     }
 
-    await tx.productImage.create({
-      data: {
-        src: image.src,
-        publicId: image.publicId,
-        altText: image.altText,
-        sortOrder: image.sortOrder,
-        isPrimary: image.isPrimary,
-        productId,
+    clonedImages.push({
+      src: image.src,
+      publicId: image.publicId,
+      altText: image.altText,
+      sortOrder: image.sortOrder,
+      isPrimary: image.isPrimary,
+      productId,
+    });
+  }
+
+  if (imageIdsToAssign.length) {
+    await tx.productImage.updateMany({
+      where: {
+        id: {
+          in: imageIdsToAssign,
+        },
       },
+      data: { productId },
+    });
+  }
+
+  if (clonedImages.length) {
+    await tx.productImage.createMany({
+      data: clonedImages,
     });
   }
 };
@@ -372,46 +401,70 @@ const attachImagesToVariant = async (
   }
 
   const uniqueImageIds = [...new Set(imageIds)];
+  const images = await tx.productImage.findMany({
+    where: {
+      id: {
+        in: uniqueImageIds,
+      },
+    },
+    select: {
+      id: true,
+      src: true,
+      publicId: true,
+      altText: true,
+      sortOrder: true,
+      isPrimary: true,
+      variantId: true,
+    },
+  });
+
+  const imagesById = new Map(images.map((image) => [image.id, image]));
 
   for (const imageId of uniqueImageIds) {
-    const image = await tx.productImage.findUnique({
-      where: { id: imageId },
-      select: {
-        id: true,
-        src: true,
-        publicId: true,
-        altText: true,
-        sortOrder: true,
-        isPrimary: true,
-        variantId: true,
-      },
-    });
-
-    if (!image) {
+    if (!imagesById.has(imageId)) {
       throw new AppError(httpStatus.BAD_REQUEST, `Image '${imageId}' not found`);
     }
+  }
+
+  const imageIdsToAssign: string[] = [];
+  const clonedImages: Prisma.ProductImageCreateManyInput[] = [];
+
+  for (const imageId of uniqueImageIds) {
+    const image = imagesById.get(imageId)!;
 
     if (image.variantId === variantId) {
       continue;
     }
 
     if (image.variantId === null) {
-      await tx.productImage.update({
-        where: { id: image.id },
-        data: { variantId },
-      });
+      imageIdsToAssign.push(image.id);
       continue;
     }
 
-    await tx.productImage.create({
-      data: {
-        src: image.src,
-        publicId: image.publicId,
-        altText: image.altText,
-        sortOrder: image.sortOrder,
-        isPrimary: image.isPrimary,
-        variantId,
+    clonedImages.push({
+      src: image.src,
+      publicId: image.publicId,
+      altText: image.altText,
+      sortOrder: image.sortOrder,
+      isPrimary: image.isPrimary,
+      variantId,
+    });
+  }
+
+  if (imageIdsToAssign.length) {
+    await tx.productImage.updateMany({
+      where: {
+        id: {
+          in: imageIdsToAssign,
+        },
       },
+      data: { variantId },
+    });
+  }
+
+  if (clonedImages.length) {
+    await tx.productImage.createMany({
+      data: clonedImages,
     });
   }
 };
@@ -426,46 +479,70 @@ const attachImagesToVariantOption = async (
   }
 
   const uniqueImageIds = [...new Set(imageIds)];
+  const images = await tx.productImage.findMany({
+    where: {
+      id: {
+        in: uniqueImageIds,
+      },
+    },
+    select: {
+      id: true,
+      src: true,
+      publicId: true,
+      altText: true,
+      sortOrder: true,
+      isPrimary: true,
+      variantOptionId: true,
+    },
+  });
+
+  const imagesById = new Map(images.map((image) => [image.id, image]));
 
   for (const imageId of uniqueImageIds) {
-    const image = await tx.productImage.findUnique({
-      where: { id: imageId },
-      select: {
-        id: true,
-        src: true,
-        publicId: true,
-        altText: true,
-        sortOrder: true,
-        isPrimary: true,
-        variantOptionId: true,
-      },
-    });
-
-    if (!image) {
+    if (!imagesById.has(imageId)) {
       throw new AppError(httpStatus.BAD_REQUEST, `Image '${imageId}' not found`);
     }
+  }
+
+  const imageIdsToAssign: string[] = [];
+  const clonedImages: Prisma.ProductImageCreateManyInput[] = [];
+
+  for (const imageId of uniqueImageIds) {
+    const image = imagesById.get(imageId)!;
 
     if (image.variantOptionId === variantOptionId) {
       continue;
     }
 
     if (image.variantOptionId === null) {
-      await tx.productImage.update({
-        where: { id: image.id },
-        data: { variantOptionId },
-      });
+      imageIdsToAssign.push(image.id);
       continue;
     }
 
-    await tx.productImage.create({
-      data: {
-        src: image.src,
-        publicId: image.publicId,
-        altText: image.altText,
-        sortOrder: image.sortOrder,
-        isPrimary: image.isPrimary,
-        variantOptionId,
+    clonedImages.push({
+      src: image.src,
+      publicId: image.publicId,
+      altText: image.altText,
+      sortOrder: image.sortOrder,
+      isPrimary: image.isPrimary,
+      variantOptionId,
+    });
+  }
+
+  if (imageIdsToAssign.length) {
+    await tx.productImage.updateMany({
+      where: {
+        id: {
+          in: imageIdsToAssign,
+        },
       },
+      data: { variantOptionId },
+    });
+  }
+
+  if (clonedImages.length) {
+    await tx.productImage.createMany({
+      data: clonedImages,
     });
   }
 };
@@ -525,38 +602,53 @@ const createVariantTree = async (
   productId: string,
   variants: IProductVariantInput[],
 ) => {
-  for (const variant of variants) {
-    const createdVariant = await tx.productVariant.create({
-      data: {
-        productId,
-        title: variant.title,
-        isActive: variant.isActive ?? true,
-      },
-      select: {
-        id: true,
-      },
-    });
+  if (!variants.length) {
+    return;
+  }
 
-    await attachImagesToVariant(tx, createdVariant.id, variant.imageIds);
+  const preparedVariants = variants.map((variant) => ({
+    input: variant,
+    id: randomUUID(),
+    options: variant.options.map((option) => ({
+      input: option,
+      id: randomUUID(),
+    })),
+  }));
+
+  await tx.productVariant.createMany({
+    data: preparedVariants.map((variant) => ({
+      id: variant.id,
+      productId,
+      title: variant.input.title,
+      isActive: variant.input.isActive ?? true,
+    })),
+  });
+
+  const optionCreateRows = preparedVariants.flatMap((variant) =>
+    variant.options.map((option) => ({
+      id: option.id,
+      productVariantId: variant.id,
+      sku: option.input.sku,
+      barcode: option.input.barcode ?? null,
+      price: option.input.price,
+      compareAtPrice: option.input.compareAtPrice ?? null,
+      costPrice: option.input.costPrice ?? null,
+      stock: option.input.stock ?? 0,
+      isActive: option.input.isActive ?? true,
+    })),
+  );
+
+  if (optionCreateRows.length) {
+    await tx.variantOption.createMany({
+      data: optionCreateRows,
+    });
+  }
+
+  for (const variant of preparedVariants) {
+    await attachImagesToVariant(tx, variant.id, variant.input.imageIds);
 
     for (const option of variant.options) {
-      const createdOption = await tx.variantOption.create({
-        data: {
-          productVariantId: createdVariant.id,
-          sku: option.sku,
-          barcode: option.barcode ?? null,
-          price: option.price,
-          compareAtPrice: option.compareAtPrice ?? null,
-          costPrice: option.costPrice ?? null,
-          stock: option.stock ?? 0,
-          isActive: option.isActive ?? true,
-        },
-        select: {
-          id: true,
-        },
-      });
-
-      await attachImagesToVariantOption(tx, createdOption.id, option.imageIds);
+      await attachImagesToVariantOption(tx, option.id, option.input.imageIds);
     }
   }
 };
@@ -594,56 +686,59 @@ const createProduct = async (payload: ICreateProductPayload) => {
     ensureVariantSkusAvailable(collectVariantSkus(variants)),
   ]);
 
-  const createdProduct = await prisma.$transaction(async (tx) => {
-    const product = await tx.product.create({
-      data: {
-        title: payload.title,
-        slug: payload.slug,
-        description: payload.description ?? null,
-        shortDesc: payload.shortDesc ?? null,
-        brand: payload.brand ?? null,
-        categoryId: payload.categoryId ?? null,
-        price: productPrice,
-        compareAtPrice: payload.compareAtPrice ?? null,
-        costPrice: payload.costPrice ?? null,
-        sku: payload.sku ?? null,
-        barcode: payload.barcode ?? null,
-        stock: payload.stock ?? null,
-        lowStockThreshold: payload.lowStockThreshold ?? 5,
-        hasVariants,
-        isActive: payload.isActive ?? true,
-        isFeatured: payload.isFeatured ?? false,
-        isDigital: payload.isDigital ?? false,
-        metaTitle: payload.metaTitle ?? null,
-        metaDescription: payload.metaDescription ?? null,
-        metaKeywords: payload.metaKeywords ?? null,
-        ...(payload.metadata !== undefined &&
-          payload.metadata !== null && {
-            metadata: payload.metadata as Prisma.InputJsonValue,
-          }),
-      },
-      select: {
-        id: true,
-      },
-    });
+  const createdProduct = await prisma.$transaction(
+    async (tx) => {
+      const product = await tx.product.create({
+        data: {
+          title: payload.title,
+          slug: payload.slug,
+          description: payload.description ?? null,
+          shortDesc: payload.shortDesc ?? null,
+          brand: payload.brand ?? null,
+          categoryId: payload.categoryId ?? null,
+          price: productPrice,
+          compareAtPrice: payload.compareAtPrice ?? null,
+          costPrice: payload.costPrice ?? null,
+          sku: payload.sku ?? null,
+          barcode: payload.barcode ?? null,
+          stock: payload.stock ?? null,
+          lowStockThreshold: payload.lowStockThreshold ?? 5,
+          hasVariants,
+          isActive: payload.isActive ?? true,
+          isFeatured: payload.isFeatured ?? false,
+          isDigital: payload.isDigital ?? false,
+          metaTitle: payload.metaTitle ?? null,
+          metaDescription: payload.metaDescription ?? null,
+          metaKeywords: payload.metaKeywords ?? null,
+          ...(payload.metadata !== undefined &&
+            payload.metadata !== null && {
+              metadata: payload.metadata as Prisma.InputJsonValue,
+            }),
+        },
+        select: {
+          id: true,
+        },
+      });
 
-    await attachImagesToProduct(tx, product.id, payload.imageIds);
+      await attachImagesToProduct(tx, product.id, payload.imageIds);
 
-    if (variants.length) {
-      await createVariantTree(tx, product.id, variants);
-    }
+      if (variants.length) {
+        await createVariantTree(tx, product.id, variants);
+      }
 
-    const fullProduct = await tx.product.findUnique({
-      where: { id: product.id },
-      select: productDetailsSelect,
-    });
+      const fullProduct = await tx.product.findUnique({
+        where: { id: product.id },
+        select: productDetailsSelect,
+      });
 
-    if (!fullProduct) {
-      throw new AppError(httpStatus.NOT_FOUND, "Product not found");
-    }
+      if (!fullProduct) {
+        throw new AppError(httpStatus.NOT_FOUND, "Product not found");
+      }
 
-    return fullProduct;
-  });
+      return fullProduct;
+    },
+    writeTransactionOptions,
+  );
 
   return createdProduct;
 };
@@ -737,168 +832,171 @@ const updateProduct = async (
       : Promise.resolve(),
   ]);
 
-  const updatedProduct = await prisma.$transaction(async (tx) => {
-    const updateData: Prisma.ProductUncheckedUpdateInput = {};
-    const nextHasVariants =
-      payload.hasVariants !== undefined
-        ? payload.hasVariants
-        : payload.variants !== undefined
-          ? payload.variants.length > 0
-          : existingProduct.hasVariants;
-    const nextBasePrice =
-      payload.price !== undefined ? payload.price : existingProduct.price;
+  const updatedProduct = await prisma.$transaction(
+    async (tx) => {
+      const updateData: Prisma.ProductUncheckedUpdateInput = {};
+      const nextHasVariants =
+        payload.hasVariants !== undefined
+          ? payload.hasVariants
+          : payload.variants !== undefined
+            ? payload.variants.length > 0
+            : existingProduct.hasVariants;
+      const nextBasePrice =
+        payload.price !== undefined ? payload.price : existingProduct.price;
 
-    if (payload.title !== undefined) {
-      updateData.title = payload.title;
-    }
-
-    if (payload.slug !== undefined) {
-      updateData.slug = payload.slug;
-    }
-
-    if (payload.description !== undefined) {
-      updateData.description = payload.description;
-    }
-
-    if (payload.shortDesc !== undefined) {
-      updateData.shortDesc = payload.shortDesc;
-    }
-
-    if (payload.brand !== undefined) {
-      updateData.brand = payload.brand;
-    }
-
-    if (payload.categoryId !== undefined) {
-      updateData.categoryId = payload.categoryId;
-    }
-
-    if (payload.price !== undefined) {
-      updateData.price = payload.price;
-    }
-
-    if (nextHasVariants && nextBasePrice === null) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        "Base product price is required when hasVariants is true",
-      );
-    }
-
-    if (payload.compareAtPrice !== undefined) {
-      updateData.compareAtPrice = payload.compareAtPrice;
-    }
-
-    if (payload.costPrice !== undefined) {
-      updateData.costPrice = payload.costPrice;
-    }
-
-    if (payload.sku !== undefined) {
-      updateData.sku = payload.sku;
-    }
-
-    if (payload.barcode !== undefined) {
-      updateData.barcode = payload.barcode;
-    }
-
-    if (payload.stock !== undefined) {
-      updateData.stock = payload.stock;
-    }
-
-    if (payload.lowStockThreshold !== undefined) {
-      updateData.lowStockThreshold = payload.lowStockThreshold;
-    }
-
-    if (payload.hasVariants !== undefined) {
-      updateData.hasVariants = payload.hasVariants;
-    }
-
-    if (payload.isActive !== undefined) {
-      updateData.isActive = payload.isActive;
-    }
-
-    if (payload.isFeatured !== undefined) {
-      updateData.isFeatured = payload.isFeatured;
-    }
-
-    if (payload.isDigital !== undefined) {
-      updateData.isDigital = payload.isDigital;
-    }
-
-    if (payload.metaTitle !== undefined) {
-      updateData.metaTitle = payload.metaTitle;
-    }
-
-    if (payload.metaDescription !== undefined) {
-      updateData.metaDescription = payload.metaDescription;
-    }
-
-    if (payload.metaKeywords !== undefined) {
-      updateData.metaKeywords = payload.metaKeywords;
-    }
-
-    if (payload.metadata !== undefined && payload.metadata !== null) {
-      updateData.metadata = payload.metadata as Prisma.InputJsonValue;
-    }
-
-    if (payload.variants !== undefined && payload.hasVariants === undefined) {
-      updateData.hasVariants = payload.variants.length > 0;
-    }
-
-    if (Object.keys(updateData).length) {
-      await tx.product.update({
-        where: { id: productId },
-        data: updateData,
-      });
-    }
-
-    if (payload.imageIds !== undefined) {
-      await detachImagesFromProduct(tx, productId);
-      await attachImagesToProduct(tx, productId, payload.imageIds);
-    }
-
-    const shouldReplaceVariants =
-      payload.variants !== undefined || payload.hasVariants === false;
-
-    if (shouldReplaceVariants) {
-      const existingVariants = await tx.productVariant.findMany({
-        where: { productId },
-        select: {
-          id: true,
-          options: {
-            select: { id: true },
-          },
-        },
-      });
-
-      const existingVariantIds = existingVariants.map((variant) => variant.id);
-      const existingOptionIds = existingVariants.flatMap((variant) =>
-        variant.options.map((option) => option.id),
-      );
-
-      await detachImagesFromVariantOptions(tx, existingOptionIds);
-      await detachImagesFromVariants(tx, existingVariantIds);
-
-      await tx.productVariant.deleteMany({
-        where: { productId },
-      });
-
-      const nextVariants = payload.variants ?? [];
-
-      if (nextVariants.length) {
-        await createVariantTree(tx, productId, nextVariants);
+      if (payload.title !== undefined) {
+        updateData.title = payload.title;
       }
-    }
 
-    const product = await tx.product.findUnique({
-      where: { id: productId },
-      select: productDetailsSelect,
-    });
+      if (payload.slug !== undefined) {
+        updateData.slug = payload.slug;
+      }
 
-    if (!product) {
-      throw new AppError(httpStatus.NOT_FOUND, "Product not found");
-    }
+      if (payload.description !== undefined) {
+        updateData.description = payload.description;
+      }
 
-    return product;
-  });
+      if (payload.shortDesc !== undefined) {
+        updateData.shortDesc = payload.shortDesc;
+      }
+
+      if (payload.brand !== undefined) {
+        updateData.brand = payload.brand;
+      }
+
+      if (payload.categoryId !== undefined) {
+        updateData.categoryId = payload.categoryId;
+      }
+
+      if (payload.price !== undefined) {
+        updateData.price = payload.price;
+      }
+
+      if (nextHasVariants && nextBasePrice === null) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          "Base product price is required when hasVariants is true",
+        );
+      }
+
+      if (payload.compareAtPrice !== undefined) {
+        updateData.compareAtPrice = payload.compareAtPrice;
+      }
+
+      if (payload.costPrice !== undefined) {
+        updateData.costPrice = payload.costPrice;
+      }
+
+      if (payload.sku !== undefined) {
+        updateData.sku = payload.sku;
+      }
+
+      if (payload.barcode !== undefined) {
+        updateData.barcode = payload.barcode;
+      }
+
+      if (payload.stock !== undefined) {
+        updateData.stock = payload.stock;
+      }
+
+      if (payload.lowStockThreshold !== undefined) {
+        updateData.lowStockThreshold = payload.lowStockThreshold;
+      }
+
+      if (payload.hasVariants !== undefined) {
+        updateData.hasVariants = payload.hasVariants;
+      }
+
+      if (payload.isActive !== undefined) {
+        updateData.isActive = payload.isActive;
+      }
+
+      if (payload.isFeatured !== undefined) {
+        updateData.isFeatured = payload.isFeatured;
+      }
+
+      if (payload.isDigital !== undefined) {
+        updateData.isDigital = payload.isDigital;
+      }
+
+      if (payload.metaTitle !== undefined) {
+        updateData.metaTitle = payload.metaTitle;
+      }
+
+      if (payload.metaDescription !== undefined) {
+        updateData.metaDescription = payload.metaDescription;
+      }
+
+      if (payload.metaKeywords !== undefined) {
+        updateData.metaKeywords = payload.metaKeywords;
+      }
+
+      if (payload.metadata !== undefined && payload.metadata !== null) {
+        updateData.metadata = payload.metadata as Prisma.InputJsonValue;
+      }
+
+      if (payload.variants !== undefined && payload.hasVariants === undefined) {
+        updateData.hasVariants = payload.variants.length > 0;
+      }
+
+      if (Object.keys(updateData).length) {
+        await tx.product.update({
+          where: { id: productId },
+          data: updateData,
+        });
+      }
+
+      if (payload.imageIds !== undefined) {
+        await detachImagesFromProduct(tx, productId);
+        await attachImagesToProduct(tx, productId, payload.imageIds);
+      }
+
+      const shouldReplaceVariants =
+        payload.variants !== undefined || payload.hasVariants === false;
+
+      if (shouldReplaceVariants) {
+        const existingVariants = await tx.productVariant.findMany({
+          where: { productId },
+          select: {
+            id: true,
+            options: {
+              select: { id: true },
+            },
+          },
+        });
+
+        const existingVariantIds = existingVariants.map((variant) => variant.id);
+        const existingOptionIds = existingVariants.flatMap((variant) =>
+          variant.options.map((option) => option.id),
+        );
+
+        await detachImagesFromVariantOptions(tx, existingOptionIds);
+        await detachImagesFromVariants(tx, existingVariantIds);
+
+        await tx.productVariant.deleteMany({
+          where: { productId },
+        });
+
+        const nextVariants = payload.variants ?? [];
+
+        if (nextVariants.length) {
+          await createVariantTree(tx, productId, nextVariants);
+        }
+      }
+
+      const product = await tx.product.findUnique({
+        where: { id: productId },
+        select: productDetailsSelect,
+      });
+
+      if (!product) {
+        throw new AppError(httpStatus.NOT_FOUND, "Product not found");
+      }
+
+      return product;
+    },
+    writeTransactionOptions,
+  );
 
   return updatedProduct;
 };
@@ -913,30 +1011,33 @@ const deleteProduct = async (productId: string) => {
     throw new AppError(httpStatus.NOT_FOUND, "Product not found");
   }
 
-  await prisma.$transaction(async (tx) => {
-    const variants = await tx.productVariant.findMany({
-      where: { productId },
-      select: {
-        id: true,
-        options: {
-          select: { id: true },
+  await prisma.$transaction(
+    async (tx) => {
+      const variants = await tx.productVariant.findMany({
+        where: { productId },
+        select: {
+          id: true,
+          options: {
+            select: { id: true },
+          },
         },
-      },
-    });
+      });
 
-    const variantIds = variants.map((variant) => variant.id);
-    const optionIds = variants.flatMap((variant) =>
-      variant.options.map((option) => option.id),
-    );
+      const variantIds = variants.map((variant) => variant.id);
+      const optionIds = variants.flatMap((variant) =>
+        variant.options.map((option) => option.id),
+      );
 
-    await detachImagesFromVariantOptions(tx, optionIds);
-    await detachImagesFromVariants(tx, variantIds);
-    await detachImagesFromProduct(tx, productId);
+      await detachImagesFromVariantOptions(tx, optionIds);
+      await detachImagesFromVariants(tx, variantIds);
+      await detachImagesFromProduct(tx, productId);
 
-    await tx.product.delete({
-      where: { id: productId },
-    });
-  });
+      await tx.product.delete({
+        where: { id: productId },
+      });
+    },
+    writeTransactionOptions,
+  );
 };
 
 export const ProductService = {
