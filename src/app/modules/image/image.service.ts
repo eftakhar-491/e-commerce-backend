@@ -13,6 +13,7 @@ const mediaSelect = {
   altText: true,
   isPrimary: true,
   productId: true,
+  variantId: true,
   variantOptionId: true,
   categoryId: true,
   createdAt: true,
@@ -75,10 +76,16 @@ const resolveStorageType = (image: { src: string; publicId: string | null }) => 
 };
 
 const ensureRelationsExist = async (payload: ICreateMediaPayload) => {
-  const [product, variantOption, category] = await Promise.all([
+  const [product, variant, variantOption, category] = await Promise.all([
     payload.productId
       ? prisma.product.findUnique({
           where: { id: payload.productId },
+          select: { id: true },
+        })
+      : Promise.resolve(null),
+    payload.variantId
+      ? prisma.productVariant.findUnique({
+          where: { id: payload.variantId },
           select: { id: true },
         })
       : Promise.resolve(null),
@@ -98,6 +105,10 @@ const ensureRelationsExist = async (payload: ICreateMediaPayload) => {
 
   if (payload.productId && !product) {
     throw new AppError(httpStatus.NOT_FOUND, "Product not found");
+  }
+
+  if (payload.variantId && !variant) {
+    throw new AppError(httpStatus.NOT_FOUND, "Variant not found");
   }
 
   if (payload.variantOptionId && !variantOption) {
@@ -123,6 +134,7 @@ const createImages = async (payload: ICreateMediaPayload) => {
       altText: media.altText ?? null,
       isPrimary: media.isPrimary ?? false,
       productId: payload.productId ?? null,
+      variantId: payload.variantId ?? null,
       variantOptionId: payload.variantOptionId ?? null,
       categoryId: payload.categoryId ?? null,
     })),

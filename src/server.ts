@@ -12,7 +12,7 @@ const startServer = async () => {
       );
     });
   } catch (error) {
-    console.log("❌❌❌❌❌", error);
+    console.log("❌❌❌❌", error);
   }
 };
 
@@ -67,3 +67,5 @@ process.on("uncaughtException", (err) => {
 
   process.exit(1);
 });
+
+

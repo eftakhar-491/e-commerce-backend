@@ -31,6 +31,30 @@ const optionalParentIdSchema = z.preprocess(
   z.string().uuid().nullable().optional(),
 );
 
+const imageIdsZodSchema = z
+  .array(z.string().uuid({ message: "Each image id must be a valid UUID" }))
+  .optional()
+  .superRefine((ids, ctx) => {
+    if (!ids?.length) {
+      return;
+    }
+
+    const seen = new Set<string>();
+
+    ids.forEach((id, index) => {
+      if (seen.has(id)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index],
+          message: "Duplicate image id is not allowed",
+        });
+        return;
+      }
+
+      seen.add(id);
+    });
+  });
+
 export const createCategoryZodSchema = z.object({
   name: z
     .string()
@@ -48,6 +72,7 @@ export const createCategoryZodSchema = z.object({
     }),
   description: optionalText(1000),
   image: optionalText(500),
+  imageIds: imageIdsZodSchema,
   isActive: z.coerce.boolean().optional(),
   sortOrder: z.coerce
     .number()
@@ -80,6 +105,7 @@ export const updateCategoryZodSchema = z
       .optional(),
     description: optionalText(1000),
     image: optionalText(500),
+    imageIds: imageIdsZodSchema,
     isActive: z.coerce.boolean().optional(),
     sortOrder: z.coerce
       .number()
